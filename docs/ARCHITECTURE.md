@@ -17,7 +17,7 @@
  │   cached for offline use     │             │   SECURITY DEFINER workflow functions│
  └──────────────────────────────┘             └──────────────────────────────────────┘
           ▲                                             │ nightly (GitHub Actions)
-          │ Cloudflare Pages (static files)             ▼
+          │ GitHub Pages (static files)                 ▼
                                                Cloudflare R2 vault (bucket lock rules)
 ```
 
@@ -85,13 +85,13 @@ Candidates are found by barcode, serial number, identical photo hash, and name s
 | --- | --- | --- | --- |
 | Local | `npx supabase start` (Docker) | `npm run dev` | demo seed |
 | CI | fresh local stack per run | built and served by `vite preview` | demo seed |
-| Staging (optional) | second free Supabase project | Pages branch `staging` | test data |
-| Production | Supabase project `dszldulsyoovtnsaquay` | Pages branch `main` | real data |
+| Staging (optional) | second free Supabase project | Cloudflare Pages branch `staging` (once its token exists) | test data |
+| Production | Supabase project `dszldulsyoovtnsaquay` | GitHub Pages, `gh-pages` branch, built from `main` after CI passes | real data |
 
 ## Security posture in one list
 
 - Anonymous users get nothing. Signed-in users read only rows from estates they belong to.
 - No table accepts direct writes from the app; all writes go through permission-checked functions.
 - Sign-in by 6-digit email code or password; optional authenticator-app 2FA.
-- Content Security Policy limits the app to its own files and Supabase (`public/_headers`).
+- Content Security Policy limits the app to its own files and Supabase (`public/_headers`). Enforced by hosts that honour `_headers` (Cloudflare Pages) or `vercel.json`, and in CI; GitHub Pages can't send headers, so it isn't enforced on the current live site.
 - Backups are encrypted with age before leaving GitHub; the private key is kept offline.

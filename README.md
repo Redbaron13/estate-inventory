@@ -8,13 +8,19 @@ Nothing is ever silently changed or lost. Every decision, edit, photo and approv
 
 ## What it does
 
-- **Record items fast, online or not.** Photo, name, category, the room it was found in and where it is now. Scan a product barcode or one of the app's own labels. Item numbers are reserved on the phone ahead of time, so offline items still get their permanent code.
+- **Record items fast, online or not.** Photo, name, category, the room it was found in and where it is now. Scan a product barcode or one of the app's own labels. Pick several earlier photos from the library at once. Item numbers are reserved on the phone ahead of time, so offline items still get their permanent code.
+- **Batch inventory.** Clear a shelf or a room in one pass: build a running list by scanning, typing or photographing items (one photo, one item), set what they share once (room found, where they're going, kind, brand, condition), adjust any row, then save them all and print their labels. Scanning an existing item's label adds it as a move, so packing a box is scan the box, scan the items, save.
+- **Markings and inscriptions.** A text field plus a photo of the maker's mark, signature, hallmark or engraving, kept with the item.
 - **Item codes people can read.** `0428KB-LR7FUR-Q3X` is item 428, entered by KB, found in the living room (LR), checksum 7, furniture (FUR), plus a random tail. A mistyped code is caught by the checksum.
-- **Places and boxes.** Rooms, boxes, staging areas and a holding area each get a printed label (`BOX-9Q4TR`). Scan a box, then scan items into it.
+- **Places and boxes.** Rooms, boxes, staging areas and a holding area each get a printed label (`BOX-9Q4TR`).
 - **Duplicate check.** Flags likely duplicates (same barcode, serial, photo or a similar name in the same room) and asks: same item recorded twice, or two of them?
 - **Fair decisions.** Proposals need approval by the executor, everyone, or a majority (the estate chooses). "Up for grabs" rounds can be open or sealed: sealed requests stay hidden from everyone, administrators included, until the reveal time, and ties are settled by a draw anyone can re-check.
-- **Reports and labels.** Inventory, valuations, who received what, open issues and the full history, as spreadsheet files or PDF. Avery label sheets with QR codes.
+- **Reports and labels.** Inventory, valuations, who received what, open issues and the full history, each readable on the phone and saved as PDF or spreadsheet. Avery label sheets with QR codes.
 - **Your own copy.** A backup file (data, history, thumbnails, optionally every photo) you can save to iCloud Drive or anywhere else from the share sheet, readable without the app.
+
+## Status (2026-10-12)
+
+The app and its backend are live and tested (29 unit, 79 database, 6 browser tests, all passing in CI). Sign-in by password works. Still to switch on, each needing an account or secret from the owner: email sign-in codes (Resend SMTP), the nightly R2 backups, and the staging/production deploy secrets. **[HANDOFF.md](HANDOFF.md)** has the full state, open items and backlog for anyone (or any AI agent) picking up the work.
 
 ## How it is built
 
@@ -25,7 +31,7 @@ Nothing is ever silently changed or lost. Every decision, edit, photo and approv
 | Database | Supabase Postgres: append-only tables, per-estate hash-chained history, row-level security |
 | Files | Supabase Storage, content-addressed (`{estate}/{sha256}.jpg`), no overwrite or delete |
 | Hosting | GitHub Pages: https://redbaron13.github.io/estate-inventory/ (published automatically after tests pass). Cloudflare Pages is wired up in `deploy.yml` for when its token is added |
-| Backups | GitHub Actions, nightly to a Cloudflare R2 bucket with lock rules; monthly restore drill |
+| Backups | GitHub Actions, nightly to a Cloudflare R2 bucket with lock rules; monthly restore drill (built and tested; switches on once the R2 secrets are added) |
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why things are the way they are: [docs/DECISIONS.md](docs/DECISIONS.md).
 
@@ -46,7 +52,7 @@ npm run db:test      # database tests
 npm run test:e2e     # phone-sized browser tests (needs `npm run build` and `npm run preview` running)
 ```
 
-Making and releasing a change is described in [docs/PIPELINE.md](docs/PIPELINE.md). Operating it (secrets, backups, restore, incidents) is in [docs/RUNBOOK.md](docs/RUNBOOK.md). A plain-language guide for family members is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
+Picking up the project: start with [HANDOFF.md](HANDOFF.md). Making and releasing a change is described in [docs/PIPELINE.md](docs/PIPELINE.md). Operating it (secrets, backups, restore, incidents) is in [docs/RUNBOOK.md](docs/RUNBOOK.md). A plain-language guide for family members is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
 ## Repository map
 
