@@ -104,6 +104,21 @@ $$;
 -- Runs as the caller (SECURITY INVOKER), so Row Level Security decides what
 -- comes back, including sealed claims.
 -- ---------------------------------------------------------------------------
+-- Latest history fingerprint (members only; the ledger table itself is not readable).
+create or replace function private.ledger_head(p_estate_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('estate_seq', l.estate_seq, 'hash', l.hash)
+    from public.ledger l
+   where l.estate_id = p_estate_id and private.is_member(p_estate_id)
+   order by l.estate_seq desc
+   limit 1
+$$;
+
 create or replace function public.pull_changes(p_estate_id uuid, p_since text default '0')
 returns jsonb
 language plpgsql
@@ -160,8 +175,7 @@ begin
     'redactions', (select coalesce(jsonb_agg(to_jsonb(t) - 'sync_xid'), '[]'::jsonb) from public.redactions t where t.estate_id = p_estate_id and t.sync_xid >= v_since),
     'duplicate_reviews', (select coalesce(jsonb_agg(to_jsonb(t) - 'sync_xid'), '[]'::jsonb) from public.duplicate_reviews t where t.estate_id = p_estate_id and t.sync_xid >= v_since),
     'media_verifications', (select coalesce(jsonb_agg(to_jsonb(t) - 'sync_xid'), '[]'::jsonb) from public.media_verifications t where t.estate_id = p_estate_id and t.sync_xid >= v_since),
-    'ledger_head', (select jsonb_build_object('estate_seq', l.estate_seq, 'hash', l.hash)
-                      from public.ledger l where l.estate_id = p_estate_id order by l.estate_seq desc limit 1)
+    'ledger_head', private.ledger_head(p_estate_id)
   ) into v;
 
   return v;

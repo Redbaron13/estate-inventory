@@ -59,6 +59,7 @@ grant execute on function private.media_path_estate(text) to authenticated;
 grant execute on function private.can_upload_media(text) to authenticated;
 grant execute on function private.can_read_media(text) to authenticated;
 grant execute on function private.can_receive_topic(text) to authenticated;
+grant execute on function private.ledger_head(uuid) to authenticated;
 
 alter default privileges in schema public revoke all on tables from anon, authenticated;
 alter default privileges in schema public revoke all on sequences from anon, authenticated;

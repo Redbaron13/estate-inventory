@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Estate Inventory API
+  version: 0.1.0
+  summary: Shared, append-only inventory and distribution of a loved one's personal property.
+  description: |
+    Served by the Supabase Edge Function `api` at `{SUPABASE_URL}/functions/v1/api/v1`.
+
+    **Authentication.** Every request (except `/health`) needs `Authorization: Bearer <access token>`
+    from Supabase Auth. The function acts as the caller; Row Level Security and the database workflow
+    functions decide what is allowed. The service-role key is never used.
+
+    **Writes are idempotent.** Send `Idempotency-Key: <unique id>` on POST/PUT/PATCH. Replaying the same
+    request with the same key returns the original response (`Idempotency-Replayed: true`) instead of
+    repeating the action. Devices use this to replay their offline queue safely. Reusing a key for a
+    different request returns 422.
+
+    **Nothing is deleted.** There are no DELETE endpoints. Corrections are new records (a valuation can
+    supersede another), approvals can be invalidated with a reason, files can be hidden (redacted), and
+    duplicates are merged (the extra record stays, marked MERGED).
+
+    **No silent overwrites.** `PATCH` on items and estates requires the `version` you loaded. If someone
+    else changed the record, you get 409 with the current record in `error.details.current`.
+
+    **Codes.** Item codes look like `0428KB-LR7FUR-Q3X` (number + member, room found + check digit +
+    category, random). Place codes look like `BOX-9Q4TR`. Both carry a mod-11 check digit, so typos are
+    caught. Lookups accept codes with or without dashes.
+
+    JSON field names are snake_case and match the database columns.
+servers:
+  - url: http://127.0.0.1:54321/functions/v1/api/v1
+    description: Local (supabase start)
+  - url: https://{project}.supabase.co/functions/v1/api/v1
+    variables:
+      project:
+        default: dszldulsyoovtnsaquay
+security:
+  - bearer: []
+
+tags:
+  - name: Estates
+  - name: Members
+  - name: Sync
+  - name: Places
+  - name: Items
+  - name: Files
+  - name: Valuations
+  - name: Up for grabs
+  - name: Decisions
+  - name: Custody
+  - name: Duplicates
+  - name: History
+  - name: Reports
+
+paths:
+  /health:
+    get:
+      tags: [Estates]
+      security: []
+      summary: Service health
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, version: { type: string } } } } } }
+
+  /me:
+    get:
+      tags: [Members]
+      summary: My profile and the estates I belong to
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { profile: { $ref: '#/components/schemas/Profile' }, estates: { type: array, items: { $ref: '#/components/schemas/EstateWithRole' } } } } } } }
+    patch:
+      tags: [Members]
+      summary: Update my profile
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { display_name: { type: string }, phone: { type: string }, large_text: { type: boolean }, simplified_mode: { type: boolean } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates:
+    get:
+      tags: [Estates]
+      summary: Estates I belong to
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EstateWithRole' } } } } }
+    post:
+      tags: [Estates]
+      summary: Create an estate (creator becomes administrator or executor)
+      description: Also creates the property ("The house") and a Holding area where scanned items land by default.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                id: { type: string, format: uuid }
+                name: { type: string }
+                decedent_name: { type: string }
+                date_of_death: { type: string, format: date }
+                case_reference: { type: string }
+                creator_role: { type: string, enum: [ADMINISTRATOR, EXECUTOR] }
+                approval_rule: { $ref: '#/components/schemas/ApprovalRule' }
+                auto_approve_below: { type: number }
+                unanimous_above: { type: number }
+                claim_mode: { $ref: '#/components/schemas/ClaimMode' }
+                sealed_window_hours: { type: integer, minimum: 1, maximum: 720 }
+                help_contact_name: { type: string }
+                help_contact_phone: { type: string }
+                property_name: { type: string }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Estate' } } } }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get:
+      tags: [Estates]
+      summary: Estate, members and places
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+    patch:
+      tags: [Estates]
+      summary: Change estate settings (administrator or executor)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, changes]
+              properties:
+                version: { type: integer }
+                changes:
+                  type: object
+                  description: Any of name, decedent_name, date_of_death, case_reference, approval_rule, auto_approve_below, unanimous_above, claim_mode, sealed_window_hours, help_contact_name, help_contact_phone, retention_years, default_location_id.
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/invites:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    post:
+      tags: [Members]
+      summary: Invite someone (returns a one-time code to share privately)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email }, role: { $ref: '#/components/schemas/MemberRole' } } } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { type: object, properties: { invite: { type: object }, code: { type: string, description: Shown once. } } } } } }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/invites/{inviteId}/revoke:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: inviteId, in: path, required: true, schema: { type: string, format: uuid } }]
+    post: { tags: [Members], summary: Cancel an unused invitation, responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } } }
+  /invites/accept:
+    post:
+      tags: [Members]
+      summary: Join an estate with an invitation code (must be signed in with the invited email)
+      requestBody: { content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/members/{userId}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/UserId' }]
+    patch:
+      tags: [Members]
+      summary: Change role, permissions, or 2-letter member code
+      requestBody: { content: { application/json: { schema: { type: object, properties: { changes: { type: object, properties: { role: { $ref: '#/components/schemas/MemberRole' }, member_code: { type: string, pattern: '^[A-Z]{2}$' }, can_add_items: { type: boolean }, can_edit_items: { type: boolean }, can_propose: { type: boolean }, can_approve: { type: boolean }, can_export: { type: boolean } } } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/members/{userId}/remove:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/UserId' }]
+    post:
+      tags: [Members]
+      summary: Deactivate a member (their history stays)
+      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/sync:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get:
+      tags: [Sync]
+      summary: Everything changed since a cursor (devices keep a full local copy)
+      parameters: [{ name: since, in: query, schema: { type: string, default: '0' }, description: Cursor from the previous sync; '0' for a full copy. }]
+      responses: { '200': { description: Arrays of changed rows per table, plus `cursor` and `ledger_head`. }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/inventory-numbers/reserve:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    post:
+      tags: [Sync]
+      summary: Reserve a block of inventory numbers for offline use
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [device_id], properties: { device_id: { type: string }, count: { type: integer, minimum: 1, maximum: 50, default: 20 } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/inventory-numbers/void:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    post:
+      tags: [Sync]
+      summary: Void reserved numbers that will not be used (explains gaps)
+      requestBody: { content: { application/json: { schema: { type: object, required: [reservation_id, numbers], properties: { reservation_id: { type: string, format: uuid }, numbers: { type: array, items: { type: integer } }, reason: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/locations:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    post:
+      tags: [Places]
+      summary: Add a room, box, staging area, or holding area
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { id: { type: string, format: uuid }, parent_id: { type: string, format: uuid }, name: { type: string }, kind: { $ref: '#/components/schemas/LocationKind' }, code: { type: string, description: 'Optional device-generated code (e.g. BOX-9Q4TR).' }, tag: { type: string, pattern: '^[A-Z0-9]{2}$' }, purpose: { type: string } } } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Location' } } } }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/locations/{locationId}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: locationId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [Places]
+      summary: Rename, move (re-parent, e.g. move a box), retag, or archive a place
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, parent_id: { type: string, format: uuid }, tag: { type: string }, purpose: { type: string }, archived: { type: boolean } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/locations/by-code/{code}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: code, in: path, required: true, schema: { type: string } }]
+    get: { tags: [Places], summary: Look up a place by its label code, responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } } }
+
+  /estates/{estateId}/items:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get:
+      tags: [Items]
+      summary: Search and filter the inventory
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Words, inventory number, barcode, serial, or item code' }
+        - { name: status, in: query, schema: { type: string }, description: Comma-separated statuses }
+        - { name: location_id, in: query, schema: { type: string, format: uuid } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: valuable, in: query, schema: { type: boolean } }
+        - { name: include_merged, in: query, schema: { type: boolean } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Item' } }, total: { type: integer } } } } } } }
+    post:
+      tags: [Items]
+      summary: Add an item (works from an offline queue)
+      description: |
+        `inventory_number` must come from a block this member reserved. `item_code` may be generated on the
+        device; it must match the number, the member's code, the category, and its check digit. If omitted,
+        the server generates it. `found_location_id` is the room where it was found (in the code);
+        `location_id` is where it is put now (defaults to the estate's Holding area).
+        `duplicate_checks` records the person's answer to the duplicate prompt.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, inventory_number, title]
+              properties:
+                id: { type: string, format: uuid }
+                inventory_number: { type: integer }
+                item_code: { type: string }
+                title: { type: string }
+                category: { type: string, description: 3-letter category code }
+                found_location_id: { type: string, format: uuid }
+                location_id: { type: string, format: uuid }
+                quantity: { type: integer }
+                status: { type: string, enum: [DISCOVERED, NEEDS_IDENTIFICATION, NEEDS_VALUATION, NEEDS_DECISION, ON_HOLD] }
+                description: { type: string }
+                condition: { type: string }
+                barcode: { type: string }
+                barcode_format: { type: string }
+                brand: { type: string }
+                model: { type: string }
+                serial_number: { type: string }
+                potentially_valuable: { type: boolean }
+                do_not_move: { type: boolean }
+                do_not_move_reason: { type: string }
+                device_id: { type: string }
+                captured_at: { type: string, format: date-time }
+                duplicate_checks:
+                  type: array
+                  items: { type: object, properties: { other_item_id: { type: string, format: uuid }, verdict: { type: string, enum: [DIFFERENT_ITEMS, UNSURE] }, reasons: { type: array, items: { type: string } }, note: { type: string } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } } }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/items/by-code/{code}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: code, in: path, required: true, schema: { type: string } }]
+    get: { tags: [Items], summary: Look up an item by its label code, responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } } }
+  /estates/{estateId}/items/{itemId}:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    get:
+      tags: [Items]
+      summary: Item with photos, values, custody, decisions, rounds and duplicate reviews
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+    patch:
+      tags: [Items]
+      summary: Edit an item (requires the version you loaded)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, changes]
+              properties:
+                version: { type: integer }
+                changes: { type: object, description: 'Editable fields; status only among manual statuses; mark_verified: true records a physical check. Location changes go through custody.' }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/items/{itemId}/photos/upload-url:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Files]
+      summary: Get a signed upload URL for a file named by its SHA-256
+      requestBody: { content: { application/json: { schema: { type: object, required: [sha256, mime_type], properties: { sha256: { type: string }, mime_type: { type: string, enum: [image/jpeg, image/png, image/webp, image/heic, application/pdf] } } } } } }
+      responses: { '200': { description: 'Either already_uploaded: true, or signed_url to PUT the bytes to.' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/items/{itemId}/photos:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Files]
+      summary: Register an uploaded file (the server re-hashes the stored bytes)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [id, sha256, mime_type, byte_size], properties: { id: { type: string, format: uuid }, sha256: { type: string }, thumb_sha256: { type: string }, mime_type: { type: string }, byte_size: { type: integer }, width: { type: integer }, height: { type: integer }, kind: { type: string }, caption: { type: string }, captured_at: { type: string, format: date-time } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/media/{mediaId}/url:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: mediaId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Files]
+      summary: Short-lived (5 minute) link to a file or its thumbnail
+      parameters: [{ name: thumb, in: query, schema: { type: string, enum: ['1'] } }]
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/media/{mediaId}/redact:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: mediaId, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [Files]
+      summary: Hide a file uploaded by mistake (kept in the locked backup)
+      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/items/{itemId}/valuations:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Valuations]
+      summary: Record a value (estimates, appraisals, prices and proceeds are separate kinds)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [valuation_type, amount], properties: { id: { type: string, format: uuid }, valuation_type: { $ref: '#/components/schemas/ValuationType' }, amount: { type: number }, valuation_date: { type: string, format: date }, source: { type: string }, appraiser_name: { type: string }, comparable_url: { type: string }, notes: { type: string }, attachment_media_id: { type: string, format: uuid }, supersedes_id: { type: string, format: uuid } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/items/{itemId}/grab-rounds:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Up for grabs]
+      summary: Put an item up for grabs (sealed or open per the estate setting)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { id: { type: string, format: uuid }, note: { type: string } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/items/{itemId}/claims:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    put:
+      tags: [Up for grabs]
+      summary: Record my interest (latest choice counts; sealed choices close at reveal time, by server clock)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [id, interest], properties: { id: { type: string, format: uuid }, interest: { type: string, enum: [INTERESTED, NOT_INTERESTED, NEED_INFO] }, note: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/grab-rounds/{roundId}/resolve:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: roundId, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [Up for grabs]
+      summary: Settle a round (creates an assignment proposal for the winner)
+      description: RANDOM_DRAW records a seed; winner = candidates[(first 8 hex of sha256(seed)) mod n], candidates sorted by id.
+      requestBody: { content: { application/json: { schema: { type: object, required: [method], properties: { method: { type: string, enum: [SOLE_INTEREST, DISCUSSION, RANDOM_DRAW, ROTATION, INHERITANCE_CREDIT, PURCHASE, NO_INTEREST, CANCELLED] }, winner_user_id: { type: string, format: uuid }, reason: { type: string }, amount: { type: number } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/items/{itemId}/proposals:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Decisions]
+      summary: Propose what happens to an item (one open proposal per item)
+      description: The approval rule and approvers are fixed when the proposal is made. Nobody approves a proposal giving an item to themselves.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [id, action], properties: { id: { type: string, format: uuid }, action: { type: string, enum: [ASSIGN, SELL, DONATE, RECYCLE, DISPOSE] }, recipient_user_id: { type: string, format: uuid }, recipient_name: { type: string }, amount: { type: number }, organization: { type: string }, reason: { type: string } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/proposals/{proposalId}/decision:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ProposalId' }]
+    put:
+      tags: [Decisions]
+      summary: Approve, reject, or abstain
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [APPROVE, REJECT, ABSTAIN] }, comment: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/proposals/{proposalId}/withdraw:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ProposalId' }]
+    post:
+      tags: [Decisions]
+      summary: Withdraw a pending proposal or cancel an approved one that fell through
+      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/proposals/{proposalId}/complete:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ProposalId' }]
+    post:
+      tags: [Decisions]
+      summary: Record that an approved action happened (creates the custody record)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { custody_event_id: { type: string, format: uuid }, occurred_at: { type: string, format: date-time }, to_location_id: { type: string, format: uuid }, received_by_name: { type: string }, purpose: { type: string }, notes: { type: string }, receipt_media_id: { type: string, format: uuid }, photo_media_id: { type: string, format: uuid }, final_amount: { type: number } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+  /estates/{estateId}/decisions/{decisionId}/invalidate:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { name: decisionId, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [Decisions]
+      summary: Set aside someone's decision with a reason (administrator; the original stays visible)
+      requestBody: { content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/items/{itemId}/custody:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }, { $ref: '#/components/parameters/ItemId' }]
+    post:
+      tags: [Custody]
+      summary: Record a move, handoff, return, found, or missing report
+      description: Taking an item off the property requires who, when, where and why. Sales, donations and disposals are recorded by completing an approved decision.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [id, event_type], properties: { id: { type: string, format: uuid }, event_type: { type: string, enum: [MOVED, HANDOFF, RETURNED, FOUND, REPORTED_MISSING] }, to_location_id: { type: string, format: uuid }, received_by_user_id: { type: string, format: uuid }, received_by_name: { type: string }, purpose: { type: string }, occurred_at: { type: string, format: date-time }, notes: { type: string }, receipt_media_id: { type: string, format: uuid }, photo_media_id: { type: string, format: uuid }, proposal_id: { type: string, format: uuid } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/duplicates:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get: { tags: [Duplicates], summary: Unreviewed possible duplicate pairs, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /estates/{estateId}/duplicates/review:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    post:
+      tags: [Duplicates]
+      summary: Record a verdict; SAME_ITEM merges item_id into other_item_id
+      requestBody: { content: { application/json: { schema: { type: object, required: [item_id, other_item_id, verdict], properties: { id: { type: string, format: uuid }, item_id: { type: string, format: uuid }, other_item_id: { type: string, format: uuid }, verdict: { type: string, enum: [SAME_ITEM, DIFFERENT_ITEMS, UNSURE] }, reasons: { type: array, items: { type: string } }, note: { type: string } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Ok' }, default: { $ref: '#/components/responses/Error' } }
+
+  /estates/{estateId}/ledger:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get:
+      tags: [History]
+      summary: Hash-chained history entries
+      description: hash = sha256_hex(prev_hash + payload). Payloads of sealed choices are withheld until reveal; their links still verify.
+      parameters: [{ name: after_seq, in: query, schema: { type: integer, default: 0 } }, { name: limit, in: query, schema: { type: integer, default: 500, maximum: 2000 } }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /estates/{estateId}/ledger/verify:
+    parameters: [{ $ref: '#/components/parameters/EstateId' }]
+    get: { tags: [History], summary: Server-side chain check (devices also verify independently), responses: { '200': { $ref: '#/components/responses/Ok' } } }
+
+  /estates/{estateId}/reports/{file}:
+    parameters:
+      - { $ref: '#/components/parameters/EstateId' }
+      - { name: file, in: path, required: true, schema: { type: string, enum: [inventory.csv, valuation.csv, distribution.csv, exceptions.csv, activity.csv] } }
+    get:
+      tags: [Reports]
+      summary: CSV reports (PDF versions are produced on the device)
+      responses: { '200': { description: CSV, content: { text/csv: { schema: { type: string } } } }, default: { $ref: '#/components/responses/Error' } }
+
+  /barcode/{value}:
+    parameters: [{ name: value, in: path, required: true, schema: { type: string } }]
+    get: { tags: [Items], summary: Product name suggestion for a UPC/EAN (never overwrites family data), responses: { '200': { $ref: '#/components/responses/Ok' } } }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    EstateId: { name: estateId, in: path, required: true, schema: { type: string, format: uuid } }
+    ItemId: { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }
+    UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    ProposalId: { name: proposalId, in: path, required: true, schema: { type: string, format: uuid } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, minLength: 8, maxLength: 128 } }
+  responses:
+    Ok: { description: OK, content: { application/json: { schema: { type: object } } } }
+    Error:
+      description: |
+        Error. Codes: EI400 bad request, EI401 sign in, EI403 not allowed, EI404 not found,
+        EI409 conflict (details.current holds the newer record for version conflicts), EI422 invalid,
+        EI423 permanent record.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: object, properties: { code: { type: string }, message: { type: string }, details: {} } }
+  schemas:
+    MemberRole: { type: string, enum: [ADMINISTRATOR, EXECUTOR, BENEFICIARY, FAMILY_MEMBER, APPRAISER, VIEW_ONLY] }
+    ApprovalRule: { type: string, enum: [EXECUTOR, UNANIMOUS, MAJORITY] }
+    ClaimMode: { type: string, enum: [SEALED, OPEN] }
+    LocationKind: { type: string, enum: [PROPERTY, AREA, CONTAINER, STAGING, HOLDING, PERSON, EXTERNAL] }
+    ValuationType: { type: string, enum: [FAMILY_ESTIMATE, THIRD_PARTY_ESTIMATE, FORMAL_APPRAISAL, DATE_OF_DEATH, INSURANCE, LISTING_PRICE, SALE_PROCEEDS, DONATION_VALUE] }
+    ItemStatus: { type: string, enum: [DISCOVERED, NEEDS_IDENTIFICATION, NEEDS_VALUATION, NEEDS_DECISION, UP_FOR_GRABS, CLAIM_REQUESTED, ASSIGNED, APPROVAL_PENDING, APPROVED_FOR_SALE, APPROVED_FOR_DONATION, APPROVED_FOR_DISPOSAL, SOLD, DONATED, DISTRIBUTED, DISPOSED, MISSING, ON_HOLD, MERGED] }
+    Profile: { type: object, properties: { id: { type: string }, display_name: { type: string }, email: { type: string }, phone: { type: string } } }
+    Estate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        decedent_name: { type: string }
+        date_of_death: { type: string, format: date }
+        approval_rule: { $ref: '#/components/schemas/ApprovalRule' }
+        claim_mode: { $ref: '#/components/schemas/ClaimMode' }
+        sealed_window_hours: { type: integer }
+        auto_approve_below: { type: number }
+        unanimous_above: { type: number }
+        default_location_id: { type: string, format: uuid }
+        version: { type: integer }
+    EstateWithRole:
+      allOf:
+        - $ref: '#/components/schemas/Estate'
+        - type: object
+          properties: { my_role: { $ref: '#/components/schemas/MemberRole' }, my_permissions: { type: object } }
+    Location:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        parent_id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/LocationKind' }
+        code: { type: string, example: BOX-9Q4TR }
+        tag: { type: string, example: LR }
+        purpose: { type: string }
+    Item:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        inventory_number: { type: integer }
+        item_code: { type: string, example: 0428KB-LR7FUR-Q3X }
+        title: { type: string }
+        category: { type: string }
+        quantity: { type: integer }
+        status: { $ref: '#/components/schemas/ItemStatus' }
+        original_location_id: { type: string, format: uuid }
+        current_location_id: { type: string, format: uuid }
+        potentially_valuable: { type: boolean }
+        do_not_move: { type: boolean }
+        merged_into_id: { type: string, format: uuid }
+        version: { type: integer }
