@@ -64,7 +64,7 @@
     "pg": "8.23.1",
     "supabase": "2.120.0",
     "tailwindcss": "4.3.3",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.71.1",
     "vite": "8.3.4",
     "vite-plugin-pwa": "2.0.0",
