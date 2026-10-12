@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dev-dist/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.env.local
+playwright-report/
+test-results/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
