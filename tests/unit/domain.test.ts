@@ -111,4 +111,18 @@ describe('CSV', () => {
     expect(csv.startsWith('﻿')).toBe(true);
     expect(csv).toContain('"x, y","say ""hi""\nthere"');
   });
+
+  it('neutralizes spreadsheet formulas in string cells', () => {
+    const csv = toCSV({
+      title: 't',
+      headers: ['a', 'b', 'c', 'd', 'e', 'f'],
+      rows: [['=1+1', '+SUM(A1:A2)', '-1+2', '@SUM(A1:A2)', '  =1+1', '\t=1+1']],
+    });
+    expect(csv).toContain("'=1+1,'+SUM(A1:A2),'-1+2,'@SUM(A1:A2),'  =1+1,'\t=1+1");
+  });
+
+  it('leaves numeric values as numbers', () => {
+    const csv = toCSV({ title: 't', headers: ['value'], rows: [[-1]] });
+    expect(csv).toContain('\r\n-1\r\n');
+  });
 });
