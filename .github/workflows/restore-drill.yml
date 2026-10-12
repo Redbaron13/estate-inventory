@@ -1,0 +1,139 @@
+# Monthly restore drill: an untested backup is a hope, not a backup.
+#
+# Downloads the latest encrypted database backup from the R2 vault, checks its
+# fingerprint, decrypts it, restores it into a fresh Supabase on the runner
+# (the same procedure as docs/RUNBOOK.md "Restore"), and confirms:
+#   - row counts match what was recorded at backup time
+#   - every history chain verifies and still contains the fingerprints stored
+#     with the backup
+#   - a sample of photos in the vault hash to their content-addressed names
+#   - the restored copy is usable: photo and live-update rules, sign-up
+#     triggers, the append-only guard, and a fresh write through the API.
+name: Restore drill
+
+on:
+  schedule:
+    - cron: '41 8 3 * *'   # 3rd of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Skipped with a notice until the backup key and vault keys are set up.
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.config.outputs.ready }}
+    steps:
+      - id: config
+        env:
+          AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          R2_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: |
+          if [ -z "$AGE_IDENTITY" ] || [ -z "$R2_KEY" ]; then
+            echo "::notice::Restore drill not set up yet (BACKUP_AGE_IDENTITY, R2 keys). See docs/RUNBOOK.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  drill:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'estate-inventory-vault' }}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+      RESTORED: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - name: Install rclone, age, psql
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download and decrypt the latest backup
+        run: |
+          set -euo pipefail
+          LATEST=$(rclone cat "r2:$R2_BUCKET/state/latest-db.txt")
+          echo "Restoring $LATEST"
+          rclone copyto "r2:$R2_BUCKET/$LATEST" backup.tar.gz.age
+          rclone copyto "r2:$R2_BUCKET/$LATEST.sha256" backup.sha256
+          echo "$(cut -d' ' -f1 backup.sha256)  backup.tar.gz.age" | sha256sum -c -
+          umask 077; printf '%s\n' "$AGE_IDENTITY" > key.txt
+          age -d -i key.txt -o backup.tar.gz backup.tar.gz.age
+          shred -u key.txt
+          mkdir restore && tar xzf backup.tar.gz -C restore
+          echo "### Restore drill: $LATEST" >> "$GITHUB_STEP_SUMMARY"
+
+      # Auth, storage and realtime stay on: they create the managed tables the
+      # data and policies are restored into.
+      - name: Start an empty Supabase database
+        run: |
+          mkdir drill && cd drill
+          supabase init --yes >/dev/null
+          supabase start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta,edge-runtime,mailpit,postgrest
+
+      # Role settings are platform configuration a fresh project already has,
+      # so errors there are shown but not fatal. Schema and data load in one
+      # transaction with triggers off (so the append-only guards don't block
+      # the reload); then the policies and sign-up triggers on
+      # Supabase-managed tables, which `supabase db dump` does not include.
+      - name: Restore
+        run: |
+          psql "$RESTORED" -q -f restore/roles.sql || true
+          psql "$RESTORED" --single-transaction -v ON_ERROR_STOP=1 -q \
+            --file restore/schema.sql \
+            --command 'SET session_replication_role = replica' \
+            --file restore/data.sql
+          psql "$RESTORED" -v ON_ERROR_STOP=1 -q -f restore/hooks.sql
+
+      - name: Compare row counts
+        run: |
+          set -euo pipefail
+          for t in items media ledger estates valuations proposals custody_events; do
+            want=$(jq -r ".$t" restore/counts.json)
+            have=$(psql "$RESTORED" -At -c "select count(*) from public.$t")
+            echo "$t: expected $want, restored $have"
+            [ "$want" = "$have" ] || { echo "::error::$t count mismatch"; exit 1; }
+          done
+          echo "- Row counts match: $(cat restore/counts.json)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify every history chain in the restored copy
+        run: DATABASE_URL="$RESTORED" node scripts/verify-ledger.mjs --heads restore/heads.json
+
+      - name: Spot-check photos in the vault
+        run: |
+          rclone lsjson --recursive --files-only "r2:$R2_BUCKET/media" > r2-media.json
+          DATABASE_URL="$RESTORED" node scripts/verify-backup.mjs --listing r2-media.json --remote "r2:$R2_BUCKET/media" --rehash 25 --sample 25
+          echo "- History chains and vault spot-check passed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the restored copy is usable, not just loaded
+        run: |
+          set -euo pipefail
+          policies=$(psql "$RESTORED" -At -c "select count(*) from pg_policies where schemaname in ('storage','realtime')")
+          triggers=$(psql "$RESTORED" -At -c "select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='auth' and c.relname='users' and t.tgname like 'on_auth_user%'")
+          echo "storage/realtime policies: $policies, sign-up triggers: $triggers"
+          [ "$policies" -ge 3 ] && [ "$triggers" -eq 2 ] || { echo "::error::Policies or triggers on managed tables were not restored"; exit 1; }
+          if psql "$RESTORED" -At -c "update public.ledger set payload = payload" 2>/dev/null; then
+            echo "::error::The history table accepted an edit after restore"; exit 1
+          fi
+          psql "$RESTORED" -At -v ON_ERROR_STOP=1 -f scripts/restore-write-check.sql
+          DATABASE_URL="$RESTORED" node scripts/verify-ledger.mjs --heads restore/heads.json
+          echo "- Policies, sign-up triggers, append-only guard and a fresh write all work." >> "$GITHUB_STEP_SUMMARY"

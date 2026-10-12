@@ -1,0 +1,40 @@
+-- Shared helpers for the database tests. Each test file includes this inside
+-- its own transaction (\ir _helpers.psql), so everything is rolled back.
+create schema if not exists tests;
+
+-- Create a confirmed auth user (the profile is created by trigger).
+create or replace function tests.create_user(p_id uuid, p_email text, p_name text) returns uuid
+language sql security definer as $$
+  insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, email_confirmed_at, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', p_id, 'authenticated', 'authenticated', p_email,
+          jsonb_build_object('display_name', p_name), now(), now(), now())
+  returning id;
+$$;
+
+-- Act as a user for the rest of the transaction (claims only; role unchanged).
+create or replace function tests.as_user(p_id uuid) returns void
+language sql security definer as $$
+  select set_config('request.jwt.claims',
+    json_build_object('sub', p_id, 'role', 'authenticated',
+                      'email', (select email from auth.users where id = p_id))::text, true);
+$$;
+
+-- Call the public API as the current user and return the result payload.
+create or replace function tests.api(p_fn text, p_args jsonb) returns jsonb
+language sql as $$ select public.api(p_fn, p_args) -> 'result' $$;
+
+-- Reserve numbers and create an item; returns the item row as jsonb.
+create or replace function tests.new_item(p_estate uuid, p_title text, p_extra jsonb default '{}'::jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_res jsonb;
+begin
+  v_res := tests.api('reserve_numbers', jsonb_build_object('estate_id', p_estate, 'device_id', 'test', 'count', 1));
+  return tests.api('create_item', jsonb_build_object(
+    'estate_id', p_estate, 'id', gen_random_uuid(),
+    'inventory_number', (v_res ->> 'first_number')::integer, 'title', p_title) || p_extra);
+end;
+$$;
+
+grant usage on schema tests to authenticated;
+grant execute on all functions in schema tests to authenticated;

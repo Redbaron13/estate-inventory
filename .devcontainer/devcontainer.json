@@ -1,0 +1,33 @@
+// Work on Estate Inventory from any device: open the GitHub repository in a
+// Codespace (Code > Codespaces > Create) or in VS Code with "Reopen in
+// Container". Everything the project needs is installed automatically; run
+// `npm run db:start` and then `npm run dev`.
+{
+  "name": "Estate Inventory",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/deno:1": {}
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" },
+  "forwardPorts": [5173, 54321, 54323, 54324],
+  "portsAttributes": {
+    "5173": { "label": "App", "onAutoForward": "openBrowser" },
+    "54321": { "label": "Supabase API" },
+    "54323": { "label": "Supabase Studio" },
+    "54324": { "label": "Local inbox (sign-in codes)" }
+  },
+  "postCreateCommand": "npm ci && npx playwright install --with-deps chromium",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "denoland.vscode-deno",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright",
+        "supabase.vscode-supabase-extension"
+      ]
+    }
+  }
+}

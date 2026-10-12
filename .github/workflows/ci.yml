@@ -1,0 +1,101 @@
+# Every pull request and every push to main runs the full test suite:
+#   1. lint, types, unit tests, production build, API type check
+#   2. a real local Supabase stack: database tests (RLS, immutability,
+#      approvals, sealed claims, ledger) and phone-sized end-to-end tests,
+#      including recording an item offline and syncing it.
+# Nothing can be deployed unless this passes: deploy.yml calls it first on
+# every push to main, so it is not triggered separately for main (that would
+# run it twice and spend GitHub's free minutes twice as fast).
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_CLI_VERSION: 2.120.0
+
+jobs:
+  app:
+    name: Lint, types, unit tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+          VITE_APP_ENV: ci
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check the API function
+        run: deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts
+
+  stack:
+    name: Database and end-to-end tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Start local Supabase (migrations + demo seed)
+        run: supabase start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta
+      - name: Database tests (pgTAP)
+        run: supabase test db
+      - name: Independent history check
+        run: DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres node scripts/verify-ledger.mjs
+      - name: Build the app against the local stack
+        run: |
+          STATUS=$(supabase status -o json)
+          {
+            echo "VITE_SUPABASE_URL=$(echo "$STATUS" | jq -r .API_URL)"
+            echo "VITE_SUPABASE_ANON_KEY=$(echo "$STATUS" | jq -r .ANON_KEY)"
+            echo "VITE_APP_ENV=ci"
+          } > .env.local
+          npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Phone end-to-end tests
+        run: |
+          npx vite preview --port 4173 --host 127.0.0.1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:54321/functions/v1/api/v1/health >/dev/null && break; sleep 2; done
+          npx playwright test
+      - name: Keep the test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 14
+      - name: Function logs on failure
+        if: failure()
+        run: docker logs $(docker ps --format '{{.Names}}' | grep edge_runtime | head -1) 2>&1 | tail -200
