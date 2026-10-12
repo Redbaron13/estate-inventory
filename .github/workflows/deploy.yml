@@ -15,7 +15,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, mainbranch]
   workflow_dispatch:
     inputs:
       target:
@@ -26,6 +26,10 @@ on:
       confirm:
         description: To deploy to production, type the word production
         required: false
+      reset_password_flag:
+        description: Flag to reset temporary password for kevinbaron13@gmail.com
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-${{ inputs.target || 'staging' }}
@@ -40,14 +44,19 @@ jobs:
 
   # The app on GitHub Pages (https://redbaron13.github.io/estate-inventory/),
   # pointed at the hosted Supabase project (.env.hosted). Runs on every push
-  # to main once all tests pass.
+  # to main or mainbranch once all tests pass.
   pages:
     needs: ci
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: https://redbaron13.github.io/estate-inventory/
     permissions:
       contents: write
+      pages: write
+      id-token: write
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -61,10 +70,19 @@ jobs:
       - name: Build for GitHub Pages
         run: |
           npx tsc -b
+          [ -n "${PAGES_SUPABASE_URL}" ] && export VITE_SUPABASE_URL="${PAGES_SUPABASE_URL}"
+          [ -n "${PAGES_SUPABASE_ANON_KEY}" ] && export VITE_SUPABASE_ANON_KEY="${PAGES_SUPABASE_ANON_KEY}"
+          [ -n "${PAGES_API_URL}" ] && export VITE_API_URL="${PAGES_API_URL}"
+          if [ "${RESET_PASSWORD_FLAG}" = "true" ]; then export VITE_RESET_PASSWORD_FLAG="true"; fi
           VITE_BASE=/estate-inventory/ VITE_APP_VERSION=${GITHUB_SHA::7} npx vite build --mode hosted --outDir dist-pages
           cp dist-pages/index.html dist-pages/404.html
           touch dist-pages/.nojekyll
           rm -f dist-pages/_headers
+        env:
+          PAGES_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL || vars.VITE_SUPABASE_URL || '' }}
+          PAGES_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PROD_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || '' }}
+          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+          RESET_PASSWORD_FLAG: ${{ inputs.reset_password_flag || vars.RESET_PASSWORD_FLAG || vars.VITE_RESET_PASSWORD_FLAG || 'false' }}
       - name: Publish to the gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -150,7 +168,7 @@ jobs:
       - name: Publish to Cloudflare Pages
         if: steps.gate.outputs.skip != 'true'
         run: |
-          BRANCH=$([ "$TARGET" = "production" ] && echo main || echo staging)
+          BRANCH=$([ "$TARGET" = "production" ] && echo "${GITHUB_REF_NAME:-main}" || echo staging)
           npx wrangler pages project create "$PAGES_PROJECT" --production-branch main 2>/dev/null || true
           npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "$BRANCH" --commit-hash "$GITHUB_SHA" --commit-dirty=true
 

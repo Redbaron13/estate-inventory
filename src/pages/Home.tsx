@@ -71,18 +71,21 @@ export default function Home() {
 
       <section className="mb-6" aria-labelledby="progress">
         <h2 id="progress" className="mb-3">Progress</h2>
-        <dl className="tabular divide-y divide-line border-y border-line">
+        <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {[
-            ['Items recorded', s.total],
-            ['Need review', s.needsReview],
-            ['Possibly valuable', s.valuables],
-            ['Assigned or given to family', s.assigned],
-            ['Sold or donated', s.soldOrDonated],
-            ['Left the estate in total', s.leftEstate],
-          ].map(([label, value]) => (
-            <div key={label} className="flex items-baseline justify-between py-2.5">
-              <dt>{label}</dt>
-              <dd className="text-lg font-bold">{value}</dd>
+            ['Items recorded', s.total, 'tag'],
+            ['Need review', s.needsReview, 'search'],
+            ['Possibly valuable', s.valuables, 'star'],
+            ['Assigned to family', s.assigned, 'gift'],
+            ['Sold or donated', s.soldOrDonated, 'check'],
+            ['Left the estate', s.leftEstate, 'box'],
+          ].map(([label, value, icon]) => (
+            <div key={label} className="panel p-3.5 flex flex-col justify-between">
+              <dt className="text-[0.86rem] text-ink-soft mb-1 font-medium flex items-center justify-between">
+                <span>{label}</span>
+                <Icon name={icon as any} size={16} className="text-ink-soft/70" />
+              </dt>
+              <dd className="text-2xl font-extrabold tabular tracking-tight text-ink">{value}</dd>
             </div>
           ))}
         </dl>

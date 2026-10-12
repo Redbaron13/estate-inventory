@@ -90,10 +90,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <UpdateBanner />
-      <header className="safe-top sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2">
-          <Link to="/estates" className="min-w-0 flex-1 truncate font-bold" title="Switch estate">
-            {data?.estate?.name ?? 'Estate'}
+      <header className="safe-top sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur-sm shadow-2xs">
+        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2.5">
+          <Link to="/estates" className="min-w-0 flex-1 truncate font-bold hover:opacity-80 transition-opacity flex items-center gap-1.5" title="Switch estate">
+            <span className="truncate">{data?.estate?.name ?? 'Estate'}</span>
+            <span className="text-ink-soft text-xs font-normal select-none">▾</span>
           </Link>
           <SyncPill estateId={estateId} />
           <HelpButton estateId={estateId} />
@@ -105,7 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       </header>
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">{children}</main>
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface" aria-label="Main">
+      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-sm shadow-md" aria-label="Main">
         <ul className="mx-auto grid max-w-2xl grid-cols-5">
           {TABS.map((t) => (
             <li key={t.label}>
@@ -113,15 +114,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={`/e/${estateId}${t.to ? `/${t.to}` : ''}`}
                 end={t.end}
                 className={({ isActive }) =>
-                  `flex min-h-16 flex-col items-center justify-center gap-0.5 text-[0.78rem] font-bold ${isActive ? 'text-action' : 'text-ink-soft'}`
+                  `flex min-h-16 flex-col items-center justify-center gap-0.5 text-[0.78rem] font-bold transition-colors ${isActive ? 'text-action' : 'text-ink-soft hover:text-ink'}`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <span className={`flex h-8 w-12 items-center justify-center rounded-full ${isActive ? 'bg-sunk' : ''}`}>
+                    <span className={`flex h-8 w-12 items-center justify-center rounded-full transition-all duration-150 ${isActive ? 'bg-sunk scale-105 shadow-2xs' : ''}`}>
                       <Icon name={t.icon} size={t.icon === 'plus' ? 26 : 23} />
                     </span>
-                    {t.label}
+                    <span className="truncate">{t.label}</span>
                   </>
                 )}
               </NavLink>
