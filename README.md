@@ -1,5 +1,7 @@
 # Estate Inventory
 
+**Live app:** https://redbaron13.github.io/estate-inventory/
+
 A private, offline-first app for a family to record a loved one's belongings and decide together where each one goes: to a family member, or to be sold, donated, recycled or thrown away. It installs on a phone from the browser (a PWA), works in a closet or basement with no signal, and syncs when the connection comes back.
 
 Nothing is ever silently changed or lost. Every decision, edit, photo and approval is kept as a permanent, tamper-evident history; mistakes are corrected by adding a correction, never by erasing. Backups go nightly to a locked vault that even the account owner cannot delete from.
@@ -22,7 +24,7 @@ Nothing is ever silently changed or lost. Every decision, edit, photo and approv
 | API | Supabase Edge Function (Deno + Hono) at `/functions/v1/api/v1`, spec in `api/openapi.yaml` |
 | Database | Supabase Postgres: append-only tables, per-estate hash-chained history, row-level security |
 | Files | Supabase Storage, content-addressed (`{estate}/{sha256}.jpg`), no overwrite or delete |
-| Hosting | Cloudflare Pages |
+| Hosting | GitHub Pages: https://redbaron13.github.io/estate-inventory/ (published automatically after tests pass). Cloudflare Pages is wired up in `deploy.yml` for when its token is added |
 | Backups | GitHub Actions, nightly to a Cloudflare R2 bucket with lock rules; monthly restore drill |
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why things are the way they are: [docs/DECISIONS.md](docs/DECISIONS.md).

@@ -7,7 +7,8 @@ Operating the production app: one-time setup, backups, restore, and what to do w
 | Thing | Where | Notes |
 | --- | --- | --- |
 | Database, sign-in, photos, API | Supabase project `estate-inventory` (`dszldulsyoovtnsaquay`, US East, Postgres 17) | Created through the Vercel Marketplace integration, so plan changes and billing go through Vercel |
-| App | Cloudflare Pages project `estate-inventory` | Static files only; no data |
+| App | GitHub Pages, `gh-pages` branch: https://redbaron13.github.io/estate-inventory/ (Cloudflare Pages optional, via Deploy to production) | Static files only; no data. Published by the `pages` job in deploy.yml after CI passes |
+| API function | Supabase function `api`, deployed from a pinned GitHub commit | To update outside the pipeline, redeploy with the new commit hash in its one-line entry file |
 | Backup vault | Cloudflare R2 bucket `estate-inventory-vault` (western North America) | Locked prefixes; see "Backups" |
 | Code, pipeline, backup jobs | GitHub `Redbaron13/estate-inventory` (private) | |
 | Backup decryption key | Offline: password manager plus a printed copy | Also a GitHub secret for the monthly drill |

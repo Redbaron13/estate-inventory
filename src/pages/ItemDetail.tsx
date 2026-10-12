@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { categoryLabel } from '../../supabase/functions/_shared/codes.ts';
 import {
   ACTION_LABELS, CUSTODY_LABELS, DUPLICATE_REASON_LABELS, INTEREST_LABELS, MANUAL_STATUSES, MEDIA_KIND_LABELS,
-  RESOLUTION_LABELS, STATUS_LABELS, VALUATION_LABELS, allPossibleDuplicates, byId, currentValuations, formatMoney,
+  RESOLUTION_LABELS, STATUS_LABELS, VALUATION_LABELS, allPossibleDuplicates, byId, currentValuations, formatMoney, proposalSummary,
   isOnProperty, locationPath, memberName, openProposalFor, openRoundFor, referenceValue, roundView, proposalView,
   type EstateData, type Interest, type Item, type ItemStatus, type Media, type Member, type ProposalAction,
   type ResolutionMethod, type ValuationType,
@@ -415,7 +415,7 @@ function History({ item, data, me }: { item: Item; data: EstateData; me: string 
     ...data.valuations.filter((v) => v.item_id === item.id).map((v) => ({ at: v.created_at, who: v.entered_by, text: `${VALUATION_LABELS[v.valuation_type]}: ${formatMoney(v.amount)}${v.supersedes_id ? ' (correction)' : ''}` })),
     ...data.proposals.filter((p) => p.item_id === item.id).flatMap((p) => {
       const v = proposalView(p, data);
-      const out: { at: string; who: string | null; text: string }[] = [{ at: p.created_at, who: p.requested_by, text: `Proposed: ${ACTION_LABELS[p.action]}${p.recipient_user_id ? ` to ${memberName(p.recipient_user_id, data)}` : ''}` }];
+      const out: { at: string; who: string | null; text: string }[] = [{ at: p.created_at, who: p.requested_by, text: `Proposed: ${proposalSummary(p, data)}` }];
       for (const d of data.proposal_decisions.filter((d) => d.proposal_id === p.id)) out.push({ at: d.created_at, who: d.user_id, text: `${d.decision === 'APPROVE' ? 'Approved' : d.decision === 'REJECT' ? 'Rejected' : 'Abstained'}${v.invalidated.has(d.id) ? ' (later set aside)' : ''}${d.comment ? `: “${d.comment}”` : ''}` });
       if (v.outcome) out.push({ at: v.outcome.created_at, who: v.outcome.recorded_by, text: `Decision ${v.outcome.outcome.toLowerCase()}${v.outcome.note ? `. ${v.outcome.note}` : ''}` });
       if (v.cancellation) out.push({ at: v.cancellation.created_at, who: v.cancellation.cancelled_by, text: `Cancelled: ${v.cancellation.reason}` });

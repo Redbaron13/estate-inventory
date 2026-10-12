@@ -387,6 +387,18 @@ export function proposalView(p: Proposal, data: EstateData): ProposalView {
   return { proposal: p, status, outcome, completion, cancellation, effective, approvals, rejections, abstentions, eligible, waitingOn, invalidated };
 }
 
+/** Plain-language summary of what a proposal does: "Give to Blair", "Donate (Public library)". */
+export function proposalSummary(
+  p: Pick<Proposal, 'action' | 'recipient_user_id' | 'recipient_name' | 'organization'>,
+  data: Pick<EstateData, 'profiles'>,
+): string {
+  if (p.action === 'ASSIGN') {
+    const who = p.recipient_user_id ? memberName(p.recipient_user_id, data) : p.recipient_name;
+    return who ? `Give to ${who}` : ACTION_LABELS.ASSIGN;
+  }
+  return p.organization ? `${ACTION_LABELS[p.action]} (${p.organization})` : ACTION_LABELS[p.action];
+}
+
 export function openProposalFor(itemId: string, data: EstateData): ProposalView | null {
   const candidates = data.proposals
     .filter((p) => p.item_id === itemId)

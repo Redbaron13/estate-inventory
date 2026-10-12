@@ -1,9 +1,9 @@
 // Report builders shared by the web app (offline CSV/PDF) and the API (CSV).
 import { categoryLabel } from './codes.ts';
 import {
-  ACTION_LABELS, CUSTODY_LABELS, EXCEPTION_LABELS, LEFT_ESTATE_STATUSES, RESOLUTION_LABELS, STATUS_LABELS,
+  CUSTODY_LABELS, EXCEPTION_LABELS, LEFT_ESTATE_STATUSES, RESOLUTION_LABELS, STATUS_LABELS,
   VALUATION_LABELS, assignedTo, byId, currentValuations, exceptions, formatMoney, isLiveItem, locationPath,
-  memberName, proposalView, referenceValue,
+  memberName, proposalSummary, proposalView, referenceValue,
   type EstateData, type Item, type LedgerEntry, type ValuationType,
 } from './domain.ts';
 
@@ -180,7 +180,7 @@ export function describeLedgerEntry(e: LedgerEntry, data: EstateData): string {
     }
     case 'media': return `Added a photo or file to ${itemRef()}`;
     case 'valuations': return `${VALUATION_LABELS[a.valuation_type as ValuationType]} of ${formatMoney(a.amount)} for ${itemRef()}${a.supersedes_id ? ' (correction)' : ''}`;
-    case 'proposals': return `Proposed: ${ACTION_LABELS[a.action as keyof typeof ACTION_LABELS]} — ${itemRef()}${a.recipient_user_id ? ` to ${memberName(a.recipient_user_id, data)}` : a.organization ? ` (${a.organization})` : ''}`;
+    case 'proposals': return `Proposed: ${proposalSummary(a as Parameters<typeof proposalSummary>[0], data)} — ${itemRef()}`;
     case 'proposal_decisions': return `${memberName(a.user_id, data)} ${a.decision === 'APPROVE' ? 'approved' : a.decision === 'REJECT' ? 'rejected' : 'abstained on'} a decision${a.comment ? `: "${a.comment}"` : ''}`;
     case 'decision_invalidations': return `A decision was set aside: ${a.reason}`;
     case 'proposal_outcomes': return `Decision ${String(a.outcome).toLowerCase()} — ${itemRef()}`;

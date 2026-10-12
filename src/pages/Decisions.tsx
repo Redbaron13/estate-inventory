@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ACTION_LABELS, DUPLICATE_REASON_LABELS, allPossibleDuplicates, byId, memberName, proposalView, roundView,
+  DUPLICATE_REASON_LABELS, allPossibleDuplicates, byId, memberName, proposalSummary, proposalView, roundView,
   type EstateData, type Item,
 } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
@@ -71,7 +71,7 @@ export default function Decisions() {
       <Section title="Your approval is needed" count={v.myVotes.length}>
         {v.myVotes.map((p) => (
           <ItemLine key={p.proposal.id} item={v.items.get(p.proposal.item_id)!} data={data} estateId={estateId}>
-            {ACTION_LABELS[p.proposal.action]}{p.proposal.recipient_user_id ? ` to ${memberName(p.proposal.recipient_user_id, data)}` : ''}. Proposed by {memberName(p.proposal.requested_by, data)}.
+            {proposalSummary(p.proposal, data)}. Proposed by {memberName(p.proposal.requested_by, data)}.
           </ItemLine>
         ))}
       </Section>
@@ -103,7 +103,7 @@ export default function Decisions() {
       <Section title="Approved, not done yet" count={v.approved.length}>
         {v.approved.map((p) => (
           <ItemLine key={p.proposal.id} item={v.items.get(p.proposal.item_id)!} data={data} estateId={estateId}>
-            {ACTION_LABELS[p.proposal.action]}{p.proposal.recipient_user_id ? ` to ${memberName(p.proposal.recipient_user_id, data)}` : ''}. Record it when it happens.
+            {proposalSummary(p.proposal, data)}. Record it when it happens.
           </ItemLine>
         ))}
       </Section>
@@ -111,7 +111,7 @@ export default function Decisions() {
       <Section title="Waiting for others" count={v.waiting.length}>
         {v.waiting.map((p) => (
           <ItemLine key={p.proposal.id} item={v.items.get(p.proposal.item_id)!} data={data} estateId={estateId}>
-            {ACTION_LABELS[p.proposal.action]}. Waiting on {p.waitingOn.map((u) => memberName(u, data)).join(', ') || 'no one'}.
+            {proposalSummary(p.proposal, data)}. Waiting on {p.waitingOn.map((u) => memberName(u, data)).join(', ') || 'no one'}.
           </ItemLine>
         ))}
       </Section>
