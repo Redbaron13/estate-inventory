@@ -13,7 +13,7 @@ export default function More() {
     <div>
       <h1 className="mb-5">More</h1>
       <nav className="panel mb-6 px-4" aria-label="More">
-        <LinkRow to={`${base}/scan`} icon="scan" title="Scan and put away" detail="File items into boxes and staging areas by scanning" />
+        <LinkRow to={`${base}/scan`} icon="scan" title="Batch inventory" detail="Scan or photograph many items into a list, set what they share, save them all" />
         <LinkRow to={`${base}/places`} icon="box" title="Places and labels" detail="Rooms, boxes, staging areas, printable QR labels" />
         {member?.can_export !== false && <LinkRow to={`${base}/reports`} icon="file" title="Reports" detail="Inventory, values, distribution, exceptions, history" />}
         {member?.can_export !== false && <LinkRow to={`${base}/backup`} icon="cloud" title="Save a copy" detail="To iCloud or your own drive; history check" />}

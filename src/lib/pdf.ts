@@ -87,7 +87,8 @@ function drawQr(doc: jsPDF, text: string, x: number, y: number, size: number) {
   doc.setFillColor(0, 0, 0);
   for (let r = 0; r < m.size; r++) {
     for (let c = 0; c < m.size; c++) {
-      if (m.isDark(r, c)) doc.rect(x + c * cell, y + r * cell, cell + 0.15, cell + 0.15, 'F');
+      // A hair of overlap (1% of a module) hides seams between modules in PDF viewers.
+      if (m.isDark(r, c)) doc.rect(x + c * cell, y + r * cell, cell * 1.01, cell * 1.01, 'F');
     }
   }
 }

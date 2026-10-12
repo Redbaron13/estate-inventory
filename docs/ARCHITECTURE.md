@@ -51,7 +51,7 @@ A per-estate advisory lock keeps sequence numbers gapless. Rewriting any past en
 - Item edits carry the field values they were based on. If someone else changed the same field in the meantime, the server refuses with a conflict and the app shows both versions to choose from. Edits to different fields merge.
 - Live updates arrive as Supabase Realtime broadcasts on `estate:{id}`, which just prompt a pull. Only members can subscribe.
 
-**Item numbers offline.** Each phone reserves a block of 50 numbers (refilled below 25). Offline items use the next reserved number, so codes are permanent from the moment of capture. Unused numbers can be voided, which is recorded. If a phone runs out offline, items are saved as drafts and get numbers on reconnect.
+**Item numbers offline.** Each phone reserves a block of 20 numbers (refilled below 8; `src/lib/config.ts`). Small blocks keep numbers close to the real item count when several phones are in use. Offline items use the next reserved number, so codes are permanent from the moment of capture. Unused numbers can be voided, which is recorded. If a phone runs out offline, items are saved as drafts and get numbers on reconnect.
 
 ## Codes
 

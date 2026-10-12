@@ -57,7 +57,7 @@ export default function Home() {
       </Link>
       {!simple && (
         <Link to={`${base}/scan`} className="btn btn-secondary btn-block mb-6">
-          <Icon name="scan" /> Scan and put away
+          <Icon name="scan" /> Batch inventory: many items at once
         </Link>
       )}
 
@@ -87,7 +87,7 @@ export default function Home() {
           ))}
         </dl>
         {view.toFix > 0 && !simple && (
-          <Link to={`${base}/reports?show=exceptions`} className="mt-3 inline-flex items-center gap-2 font-bold text-action">
+          <Link to={`${base}/reports/exceptions`} className="mt-3 inline-flex items-center gap-2 font-bold text-action">
             <Icon name="alert" size={18} /> {view.toFix} things to check in the exceptions report
           </Link>
         )}

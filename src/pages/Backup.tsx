@@ -41,6 +41,10 @@ export default function Backup() {
   async function save() {
     if (!file) return;
     const outcome = await saveFile(file, estateId);
+    if (outcome === 'needs-tap') {
+      setDone('Tap “Save the file” once more to open the share sheet.');
+      return;
+    }
     if (outcome !== 'cancelled') {
       setDone(outcome === 'shared' ? 'Saved. Check that it appears in the Files app under iCloud Drive.' : 'Downloaded. Move it to iCloud Drive, Google Drive or a USB stick to keep it safe.');
       setFile(null);

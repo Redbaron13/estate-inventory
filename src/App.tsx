@@ -17,6 +17,7 @@ import Estates from './pages/Estates';
 const QuickScan = lazy(() => import('./pages/QuickScan'));
 const Decisions = lazy(() => import('./pages/Decisions'));
 const Reports = lazy(() => import('./pages/Reports'));
+const ReportDetail = lazy(() => import('./pages/Reports').then((m) => ({ default: m.ReportDetail })));
 const Backup = lazy(() => import('./pages/Backup'));
 const Family = lazy(() => import('./pages/Family'));
 const Uploads = lazy(() => import('./pages/Uploads'));
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="places" element={<PlaceList />} />
             <Route path="places/:locationId" element={<PlaceDetail />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="reports/:reportKey" element={<ReportDetail />} />
             <Route path="backup" element={<Backup />} />
             <Route path="family" element={<Family />} />
             <Route path="uploads" element={<Uploads />} />

@@ -12,7 +12,8 @@ import { addPhotos, captureItem, online, updateItem, type CapturePhoto, type Nex
 import { db, getMeta, setMeta } from '../lib/db';
 import { useBlobUrl, useEstateData, useEstateId, useMe, useMyMembership } from '../lib/hooks';
 import { preparePhoto } from '../lib/images';
-import { saveFile, blobFile } from '../lib/files';
+import { useFileSaver } from '../components/FileSaver';
+import { blobFile } from '../lib/files';
 
 type Step = 'capture' | 'scan' | 'details' | 'duplicates' | 'next' | 'saved';
 
@@ -33,6 +34,7 @@ interface Wip {
   brand: string;
   model: string;
   serial_number: string;
+  markings: string;
   notes: string;
   potentially_valuable: boolean;
   do_not_move: boolean;
@@ -48,7 +50,7 @@ interface Wip {
 const blankWip = (ctx?: Partial<Wip>): Wip => ({
   step: 'capture', photos: [], barcode: '', barcode_format: '', title: '', category: ctx?.category ?? 'MSC', quantity: 1,
   foundLocationId: ctx?.foundLocationId ?? null, locationId: ctx?.locationId ?? null, description: '', condition: '',
-  brand: '', model: '', serial_number: '', notes: '', potentially_valuable: false, do_not_move: false,
+  brand: '', model: '', serial_number: '', markings: '', notes: '', potentially_valuable: false, do_not_move: false,
   do_not_move_reason: '', checks: [], next: 'review', recipient: null, organization: '', amount: '', disposeAs: 'DISPOSE',
 });
 
@@ -71,6 +73,9 @@ export default function Capture() {
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const saver = useFileSaver();
+  const markRef = useRef<HTMLInputElement>(null);
 
   // Restore an unfinished capture: never discard a partially entered item.
   useEffect(() => {
@@ -101,7 +106,8 @@ export default function Capture() {
   const set = (patch: Partial<Wip>) => setWip((w) => (w ? { ...w, ...patch } : w));
   const go = (step: Step) => { setError(null); set({ step }); window.scrollTo(0, 0); };
 
-  async function addFiles(files: FileList | null) {
+  // kind: what the photos show; by default the first is the whole item.
+  async function addFiles(files: FileList | null, kind?: MediaKind) {
     if (!files?.length) return;
     setBusy('Preparing photos…');
     try {
@@ -113,7 +119,7 @@ export default function Capture() {
           { sha256: p.sha256, estate_id: estateId, blob: p.full, mime_type: p.mime_type, role: 'full', uploaded: false, created_at: t },
           { sha256: p.thumb_sha256, estate_id: estateId, blob: p.thumb, mime_type: 'image/jpeg', role: 'thumb', uploaded: false, created_at: t },
         ]);
-        added.push({ sha256: p.sha256, thumb_sha256: p.thumb_sha256, mime_type: p.mime_type, width: p.width, height: p.height, byte_size: p.byte_size, kind: wip!.photos.length + added.length === 0 ? 'FULL_ITEM' : 'OTHER' });
+        added.push({ sha256: p.sha256, thumb_sha256: p.thumb_sha256, mime_type: p.mime_type, width: p.width, height: p.height, byte_size: p.byte_size, kind: kind ?? (wip!.photos.length + added.length === 0 ? 'FULL_ITEM' : 'OTHER') });
       }
       set({ photos: [...wip!.photos, ...added] });
     } catch (e) {
@@ -183,7 +189,7 @@ export default function Capture() {
         estateId, title: w.title, category: w.category, quantity: w.quantity, foundLocationId: w.foundLocationId,
         locationId: w.locationId, description: w.description || null, condition: w.condition || null,
         barcode: w.barcode || null, barcode_format: w.barcode_format || null, brand: w.brand || null, model: w.model || null,
-        serial_number: w.serial_number || null, notes: w.notes || null, potentially_valuable: w.potentially_valuable,
+        serial_number: w.serial_number || null, markings: w.markings || null, notes: w.notes || null, potentially_valuable: w.potentially_valuable,
         do_not_move: w.do_not_move, do_not_move_reason: w.do_not_move_reason || null,
         photos: await photosForSave(), duplicateChecks: w.checks, nextStep,
       });
@@ -202,7 +208,7 @@ export default function Capture() {
   async function printLabel(item: Item) {
     const { itemLabelsPdf } = await import('../lib/pdf');
     const pdf = itemLabelsPdf([item], data!.locations);
-    await saveFile(blobFile(pdf, `label-${item.item_code}.pdf`, 'application/pdf'));
+    await saver.deliver(blobFile(pdf, `label-${item.item_code}.pdf`, 'application/pdf'));
   }
 
   function another() {
@@ -233,6 +239,7 @@ export default function Capture() {
               <button type="button" className="btn btn-primary btn-block" onClick={another}><Icon name="camera" /> Add another item</button>
               <Link to={`/e/${estateId}/items/${saved.item.id}`} className="btn btn-secondary btn-block">View this item</Link>
               <button type="button" className="btn btn-quiet" onClick={() => void printLabel(saved.item!)}><Icon name="tag" size={18} /> Print a label for it</button>
+              {saver.panel}
             </div>
           </>
         ) : (
@@ -285,6 +292,10 @@ export default function Capture() {
               <Icon name="camera" size={26} /> {wip.photos.length ? 'Take another photo' : 'Take photo'}
             </button>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(e) => { void addFiles(e.target.files); e.target.value = ''; }} />
+            <button type="button" className="btn btn-secondary btn-block min-h-14" onClick={() => libraryRef.current?.click()}>
+              <Icon name="copy" /> Choose photos (taken earlier)
+            </button>
+            <input ref={libraryRef} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos from your library" onChange={(e) => { void addFiles(e.target.files); e.target.value = ''; }} />
             <button type="button" className="btn btn-secondary btn-block min-h-14" onClick={() => go('scan')}>
               <Icon name="barcode" /> Scan barcode
             </button>
@@ -341,6 +352,14 @@ export default function Capture() {
                 <Field label="Model" htmlFor="model"><input id="model" className="input" value={wip.model} onChange={(e) => set({ model: e.target.value })} /></Field>
                 <Field label="Serial number" htmlFor="serial"><input id="serial" className="input code" value={wip.serial_number} onChange={(e) => set({ serial_number: e.target.value })} /></Field>
                 <Field label="Condition" htmlFor="cond"><input id="cond" className="input" value={wip.condition} onChange={(e) => set({ condition: e.target.value })} placeholder="e.g. Good, chipped rim" /></Field>
+              </div>
+              <Field label="Markings or inscriptions" htmlFor="marks" hint="Maker's marks, signatures, engravings, hallmarks, writing on the back.">
+                <textarea id="marks" className="input" value={wip.markings ?? ''} onChange={(e) => set({ markings: e.target.value })} />
+              </Field>
+              <div className="-mt-3 mb-5 flex flex-wrap items-center gap-3">
+                <button type="button" className="btn btn-secondary" onClick={() => markRef.current?.click()}><Icon name="camera" size={18} /> Add a photo of the marking</button>
+                <input ref={markRef} type="file" accept="image/*" capture="environment" multiple className="sr-only" aria-label="Photo of the marking" onChange={(e) => { void addFiles(e.target.files, 'MARK'); e.target.value = ''; }} />
+                {wip.photos.filter((p) => p.kind === 'MARK').map((p) => <PhotoPreview key={p.sha256} sha={p.thumb_sha256} />)}
               </div>
               <Field label="Barcode" htmlFor="bc"><input id="bc" className="input code" value={wip.barcode} onChange={(e) => set({ barcode: e.target.value })} /></Field>
               <Field label="Notes" htmlFor="notes"><textarea id="notes" className="input" value={wip.notes} onChange={(e) => set({ notes: e.target.value })} /></Field>

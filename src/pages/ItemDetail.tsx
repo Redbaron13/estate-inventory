@@ -5,7 +5,7 @@ import {
   ACTION_LABELS, CUSTODY_LABELS, DUPLICATE_REASON_LABELS, INTEREST_LABELS, MANUAL_STATUSES, MEDIA_KIND_LABELS,
   RESOLUTION_LABELS, STATUS_LABELS, VALUATION_LABELS, allPossibleDuplicates, byId, currentValuations, formatMoney, proposalSummary,
   isOnProperty, locationPath, memberName, openProposalFor, openRoundFor, referenceValue, roundView, proposalView,
-  type EstateData, type Interest, type Item, type ItemStatus, type Media, type Member, type ProposalAction,
+  type EstateData, type Interest, type Item, type ItemStatus, type Media, type MediaKind, type Member, type ProposalAction,
   type ResolutionMethod, type ValuationType,
 } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
@@ -15,7 +15,8 @@ import {
   addPhotos, addValuation, completeProposal, createProposal, decide, invalidateDecision, openRound, recordCustody,
   redactMedia, resolveRound, reviewDuplicate, setClaim, updateItem, withdrawProposal,
 } from '../lib/actions';
-import { blobFile, saveFile } from '../lib/files';
+import { useFileSaver } from '../components/FileSaver';
+import { blobFile } from '../lib/files';
 import { useEstateData, useEstateId, useMe, useMyMembership } from '../lib/hooks';
 import { preparePhoto } from '../lib/images';
 
@@ -455,6 +456,9 @@ export default function ItemDetail() {
   const [dialog, setDialog] = useState<'edit' | 'move' | 'value' | 'propose' | null>(null);
   const [viewing, setViewing] = useState<Media | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const markRef = useRef<HTMLInputElement>(null);
+  const saver = useFileSaver();
 
   const item = data?.items.find((i) => i.id === itemId);
   const dupes = useMemo(() => (data && item ? allPossibleDuplicates(data).filter((p) => p.item.id === item.id || p.other.id === item.id) : []), [data, item]);
@@ -469,10 +473,13 @@ export default function ItemDetail() {
   const busy = !!openProposalFor(item.id, data) || !!openRoundFor(item.id, data, me);
   const gone = ['SOLD', 'DONATED', 'DISTRIBUTED', 'DISPOSED', 'MERGED'].includes(item.status);
 
-  async function onPhotos(files: FileList | null) {
+  async function onPhotos(files: FileList | null, kind?: MediaKind) {
     if (!files?.length) return;
     const prepared = [];
-    for (const f of Array.from(files)) prepared.push({ ...(await preparePhoto(f)), kind: 'OTHER' as const });
+    for (const f of Array.from(files)) {
+      const k: MediaKind = kind ?? (photos.length + prepared.length === 0 ? 'FULL_ITEM' : 'OTHER');
+      prepared.push({ ...(await preparePhoto(f)), kind: k });
+    }
     await addPhotos(item!, prepared);
   }
 
@@ -508,6 +515,14 @@ export default function ItemDetail() {
           )}
         </div>
         <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(e) => { void onPhotos(e.target.files); e.target.value = ''; }} />
+        {!gone && member?.can_add_items !== false && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="btn btn-quiet min-h-11 px-2" onClick={() => libraryRef.current?.click()}><Icon name="copy" size={18} /> Choose photos</button>
+            <button type="button" className="btn btn-quiet min-h-11 px-2" onClick={() => markRef.current?.click()}><Icon name="camera" size={18} /> Photo of a marking</button>
+          </div>
+        )}
+        <input ref={libraryRef} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos from your library" onChange={(e) => { void onPhotos(e.target.files); e.target.value = ''; }} />
+        <input ref={markRef} type="file" accept="image/*" capture="environment" multiple className="sr-only" aria-label="Photo of a marking or inscription" onChange={(e) => { void onPhotos(e.target.files, 'MARK'); e.target.value = ''; }} />
       </section>
 
       {!gone && member?.can_edit_items && (
@@ -515,9 +530,10 @@ export default function ItemDetail() {
           <button type="button" className="btn btn-secondary" onClick={() => setDialog('edit')}><Icon name="pencil" /> Edit details</button>
           <button type="button" className="btn btn-secondary" onClick={() => setDialog('move')}><Icon name="map" /> Move</button>
           <button type="button" className="btn btn-secondary" onClick={() => void updateItem(item, { mark_verified: true })}><Icon name="check" /> It's here</button>
-          <button type="button" className="btn btn-secondary" onClick={async () => { const { itemLabelsPdf } = await import('../lib/pdf'); await saveFile(blobFile(itemLabelsPdf([item], data.locations), `label-${item.item_code}.pdf`, 'application/pdf')); }}><Icon name="tag" /> Print label</button>
+          <button type="button" className="btn btn-secondary" onClick={async () => { const { itemLabelsPdf } = await import('../lib/pdf'); await saver.deliver(blobFile(itemLabelsPdf([item], data.locations), `label-${item.item_code}.pdf`, 'application/pdf')); }}><Icon name="tag" /> Print label</button>
         </div>
       )}
+      {saver.panel}
 
       {!gone && <RoundSection item={item} data={data} me={me} member={member} />}
       <ProposalSection item={item} data={data} me={me} member={member} />

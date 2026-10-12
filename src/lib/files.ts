@@ -2,7 +2,7 @@
 // Files > iCloud Drive), otherwise a normal download.
 import { setMeta } from './db';
 
-export type SaveOutcome = 'shared' | 'downloaded' | 'cancelled';
+export type SaveOutcome = 'shared' | 'downloaded' | 'cancelled' | 'needs-tap';
 
 /** Opens the share sheet where possible (iPhone: Save to Files > iCloud Drive), otherwise downloads. */
 export async function saveFile(file: File, estateId?: string): Promise<SaveOutcome> {
@@ -13,7 +13,12 @@ export async function saveFile(file: File, estateId?: string): Promise<SaveOutco
       if (estateId) await setMeta(`last_backup:${estateId}`, new Date().toISOString());
       return 'shared';
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return 'cancelled';
+      const name = (e as Error).name;
+      if (name === 'AbortError') return 'cancelled';
+      // iPhones open the share sheet only straight after a tap. If preparing
+      // the file took too long, ask for one more tap rather than falling back
+      // to a download, which an installed iPhone app silently ignores.
+      if (name === 'NotAllowedError') return 'needs-tap';
     }
   }
   const url = URL.createObjectURL(file);

@@ -109,8 +109,7 @@ test('inventory search, decisions and reports render', async ({ page }) => {
   await page.getByRole('link', { name: 'Decisions' }).click();
   await expect(page.getByRole('heading', { name: 'Decisions' })).toBeVisible();
   await shot(page, '10-decisions');
-  await page.goto(page.url().replace(/\/decisions$/, '/reports'));
-  await page.getByRole('button', { name: 'View' }).first().click();
+  await page.goto(page.url().replace(/\/decisions$/, '/reports/valuation'));
   await expect(page.getByRole('table')).toBeVisible();
   await shot(page, '11-reports');
 });

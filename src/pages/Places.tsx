@@ -6,7 +6,8 @@ import { Icon } from '../components/Icon';
 import { LocationPicker, placeOptions } from '../components/pickers';
 import { CodeTag, Dialog, EmptyState, Field, Notice, PageHeader, StatusChip, Thumb } from '../components/ui';
 import { createLocation, updateLocation } from '../lib/actions';
-import { blobFile, saveFile } from '../lib/files';
+import { useFileSaver } from '../components/FileSaver';
+import { blobFile } from '../lib/files';
 import { useEstateData, useEstateId, useMe, useMyMembership } from '../lib/hooks';
 import { itemLabelsPdf, placeLabelsPdf } from '../lib/pdf';
 import { qrPath } from '../lib/qr';
@@ -24,6 +25,7 @@ const KINDS: LocationKind[] = ['AREA', 'CONTAINER', 'STAGING', 'HOLDING', 'PROPE
 
 export function PlaceList() {
   const estateId = useEstateId();
+  const saver = useFileSaver();
   const data = useEstateData(estateId);
   const me = useMe();
   const member = useMyMembership(data, me);
@@ -45,14 +47,14 @@ export function PlaceList() {
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const print = () => {
     const places = data.locations.filter((l) => selected.has(l.id));
-    void saveFile(blobFile(placeLabelsPdf(places, data.locations), 'place-labels.pdf', 'application/pdf'));
+    void saver.deliver(blobFile(placeLabelsPdf(places, data.locations), 'place-labels.pdf', 'application/pdf'));
   };
 
   return (
     <div>
       <PageHeader title="Places and labels" back={`/e/${estateId}/more`} />
       <Notice tone="neutral" icon="box">
-        Rooms, boxes and staging areas each have a scannable code. Print labels, stick them up, then use <Link to={`/e/${estateId}/scan`} className="font-bold underline">Scan and put away</Link> to file items with no typing.
+        Rooms, boxes and staging areas each have a scannable code. Print labels, stick them up, then use <Link to={`/e/${estateId}/scan`} className="font-bold underline">Batch inventory</Link> to scan items into a box or staging area with no typing.
       </Notice>
       {member?.can_add_items && (
         <button type="button" className="btn btn-primary btn-block mb-5" onClick={() => setAdding(true)}><Icon name="plus" /> Add a room, box or staging area</button>
@@ -73,6 +75,7 @@ export function PlaceList() {
         <button type="button" className="btn btn-primary btn-block" disabled={!selected.size} onClick={print}>
           <Icon name="tag" /> Print labels for {selected.size || 'selected'} place{selected.size === 1 ? '' : 's'}
         </button>
+        {saver.panel}
       </div>
 
       <Dialog open={adding} onClose={() => setAdding(false)} title="Add a place">
@@ -92,6 +95,7 @@ export function PlaceList() {
 
 export function PlaceDetail() {
   const estateId = useEstateId();
+  const saver = useFileSaver();
   const { locationId } = useParams();
   const data = useEstateData(estateId);
   const me = useMe();
@@ -134,10 +138,11 @@ export function PlaceDetail() {
         </div>
       </div>
       <div className="mb-6 grid grid-cols-2 gap-2">
-        <button type="button" className="btn btn-secondary" onClick={() => void saveFile(blobFile(placeLabelsPdf([loc], data.locations), `label-${loc.code}.pdf`, 'application/pdf'))}><Icon name="tag" /> Print label</button>
-        {items.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void saveFile(blobFile(itemLabelsPdf(items, data.locations), `item-labels-${loc.code}.pdf`, 'application/pdf'))}><Icon name="tag" /> Labels for items</button>}
+        <button type="button" className="btn btn-secondary" onClick={() => void saver.deliver(blobFile(placeLabelsPdf([loc], data.locations), `label-${loc.code}.pdf`, 'application/pdf'))}><Icon name="tag" /> Print label</button>
+        {items.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void saver.deliver(blobFile(itemLabelsPdf(items, data.locations), `item-labels-${loc.code}.pdf`, 'application/pdf'))}><Icon name="tag" /> Labels for items</button>}
         {member?.can_edit_items && <button type="button" className="btn btn-secondary" onClick={startEdit}><Icon name="pencil" /> Edit or move</button>}
       </div>
+      {saver.panel}
       <h2 className="mb-2">{items.length} item{items.length === 1 ? '' : 's'} here</h2>
       <ul className="divide-y divide-line border-y border-line">
         {items.map((i) => (

@@ -79,6 +79,7 @@ export interface CaptureInput {
   brand?: string | null;
   model?: string | null;
   serial_number?: string | null;
+  markings?: string | null;
   notes?: string | null;
   potentially_valuable?: boolean;
   do_not_move?: boolean;
@@ -90,7 +91,8 @@ export interface CaptureInput {
 
 export type CaptureResult = { kind: 'item'; item: Item } | { kind: 'draft'; draftId: string };
 
-const ITEM_TABLES = [db.items, db.number_reservations, db.number_voids, db.members, db.locations, db.estates, db.outbox, db.blobs, db.media, db.drafts, db.meta];
+// Every table an item capture can write, including a new up-for-grabs round.
+const ITEM_TABLES = [db.items, db.number_reservations, db.number_voids, db.members, db.locations, db.estates, db.outbox, db.blobs, db.media, db.drafts, db.meta, db.grab_rounds];
 
 function storePhotoBlobs(estateId: string, p: PreparedPhoto) {
   return Promise.all([
@@ -193,7 +195,7 @@ async function materialize(
     title: input.title.trim(), description: input.description ?? null, category: input.category, quantity: input.quantity || 1,
     condition: input.condition ?? null, barcode: input.barcode ?? null, barcode_format: input.barcode_format ?? null,
     brand: input.brand ?? null, model: input.model ?? null, serial_number: input.serial_number ?? null, dimensions: null,
-    weight: null, markings: null, provenance: null, notes: input.notes ?? null,
+    weight: null, markings: input.markings ?? null, provenance: null, notes: input.notes ?? null,
     original_location_id: input.foundLocationId, current_location_id: placeId,
     status: input.nextStep.type === 'appraisal' ? 'NEEDS_VALUATION' : input.status ?? 'DISCOVERED',
     potentially_valuable: input.nextStep.type === 'appraisal' ? true : !!input.potentially_valuable,
@@ -209,7 +211,7 @@ async function materialize(
       category: item.category, quantity: item.quantity, found_location_id: input.foundLocationId, location_id: placeId,
       status: item.status, description: item.description, condition: item.condition, barcode: item.barcode,
       barcode_format: item.barcode_format, brand: item.brand, model: item.model, serial_number: item.serial_number,
-      notes: item.notes, potentially_valuable: item.potentially_valuable, do_not_move: item.do_not_move,
+      markings: item.markings, notes: item.notes, potentially_valuable: item.potentially_valuable, do_not_move: item.do_not_move,
       do_not_move_reason: item.do_not_move_reason, device_id: device, captured_at: item.captured_at,
       duplicate_checks: input.duplicateChecks,
     },

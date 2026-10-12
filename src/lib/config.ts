@@ -8,5 +8,8 @@ export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.1.0';
 export const MEDIA_BUCKET = 'estate-media';
 
 /** Keep at least this many inventory numbers on each device for offline capture. */
-export const NUMBER_POOL_MIN = 25;
-export const NUMBER_POOL_REFILL = 50;
+// Item numbers each phone holds for offline use. Small blocks keep numbers close
+// to the real item count; captures beyond a block are kept as drafts and get
+// numbers on reconnect, so nothing is lost.
+export const NUMBER_POOL_MIN = 8;
+export const NUMBER_POOL_REFILL = 20;

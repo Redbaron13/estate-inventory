@@ -28,7 +28,11 @@ Tap **Add item**.
 
 Each item gets a code like `0428KB-LR7FUR-Q3X`. You'll see it on labels and reports; you never need to type it.
 
-**Scanning barcodes.** On the add screen, scan a product barcode to fill in what the app can find. To look up something already labelled, use **More > Scan and put away** and scan its label.
+**Scanning barcodes.** On the add screen, scan a product barcode to fill in what the app can find.
+
+**Photos you took earlier.** Use **Choose photos (taken earlier)** to pick several at once from your photo library, for example ones you took with no signal.
+
+**Markings and inscriptions.** Under **More details**, write down any maker's mark, signature, engraving or hallmark, and use **Add a photo of the marking** so the family can see it. On an item's page, **Photo of a marking** does the same.
 
 ## No signal? Keep going
 
@@ -43,7 +47,16 @@ Open the app somewhere with signal now and then so it can upload. **Upload queue
 
 Under **More > Places and labels** you'll find every room, box and staging area (like "Donate pile" or "To Brittany's car"). Each has a printable label with a QR code.
 
-To pack a box: **Scan and put away**, scan the box's label, then scan each item's label. Every move is recorded.
+## Many items at once: Batch inventory
+
+**Batch inventory** (on the home screen) is for clearing a shelf or a room quickly:
+
+1. Set what the items have in common: the room they were found in, where they are going (a box or staging area), the kind of item, the brand, the condition.
+2. Add items to the running list by scanning barcodes, typing names, or taking or choosing photos (each photo becomes one item).
+3. Give any item its own name, quantity, extra photos, or a different kind or brand.
+4. Tap **Save**. Every item gets its code; you can print labels for the whole batch.
+
+Scanning a box's label sets where the batch is going. Scanning an existing item's label adds it to the batch as a move, so packing a box is: scan the box, scan each item, save. It all works with no signal.
 
 ## Deciding where things go
 
@@ -71,7 +84,7 @@ The same screen shows the **History check**. Your phone keeps a fingerprint of t
 
 ## Reports and labels
 
-**More > Reports** has the full inventory, values, who received what, open issues, and the activity history, as spreadsheets or PDFs. Label sheets print on Avery 5160 (items) and 5163 (places).
+**More > Reports** lists the full inventory, values, who received what, open issues (exceptions), and the activity history. Tap one to read it on your phone, then **Save PDF** or **Spreadsheet**. On iPhone, if the share sheet doesn't open by itself, tap **Save or share** in the "Your file is ready" box. Label sheets print on Avery 5160 (items) and 5163 (places).
 
 ## Getting help
 
