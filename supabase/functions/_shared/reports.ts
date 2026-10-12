@@ -15,7 +15,8 @@ export interface Table {
 
 export function toCSV(table: Table): string {
   const esc = (v: string | number) => {
-    const s = String(v ?? '');
+    let s = String(v ?? '');
+    if (typeof v === 'string' && (/^[\t\r\n]/.test(s) || /^\s*[=+\-@]/u.test(s))) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // Leading BOM so Excel opens UTF-8 correctly.
