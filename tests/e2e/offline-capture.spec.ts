@@ -13,6 +13,20 @@ async function shot(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 }
 
+// `vite preview` serves the production Content Security Policy (public/_headers).
+// Anything it blocks fails the test, even if the page still looks fine.
+const violations = new WeakMap<Page, string[]>();
+test.beforeEach(async ({ page }) => {
+  const found: string[] = [];
+  violations.set(page, found);
+  page.on('console', (msg) => {
+    if (/Content Security Policy/i.test(msg.text())) found.push(msg.text());
+  });
+});
+test.afterEach(async ({ page }) => {
+  expect(violations.get(page), 'Content Security Policy violations').toEqual([]);
+});
+
 async function signIn(page: Page) {
   await page.goto('/sign-in');
   await page.getByRole('button', { name: 'Use a password instead' }).click();
@@ -39,7 +53,15 @@ test('records an item with a photo while offline, then uploads it', async ({ pag
   await page.getByLabel('Kind of item').selectOption('DEC');
   await shot(page, '03-details');
   await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByRole('heading', { name: 'What should happen to it?' })).toBeVisible();
+  // CI starts from a fresh database. Run again on a reused local database and
+  // the lamp from the previous run is (correctly) offered as a duplicate.
+  const duplicateCheck = page.getByRole('heading', { name: 'Is this already in the inventory?' });
+  const nextStep = page.getByRole('heading', { name: 'What should happen to it?' });
+  await expect(duplicateCheck.or(nextStep)).toBeVisible();
+  if (await duplicateCheck.isVisible()) {
+    await page.getByRole('button', { name: /It's a different item/ }).click();
+  }
+  await expect(nextStep).toBeVisible();
   await shot(page, '04-next-step');
   await page.getByRole('button', { name: 'Save item' }).click();
 

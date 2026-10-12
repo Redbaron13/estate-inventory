@@ -429,3 +429,19 @@ enabled = true
 [functions.api]
 enabled = true
 verify_jwt = false
+
+# ---------------------------------------------------------------------------
+# Hosted projects. `supabase config push --project-ref <ref>` applies the
+# settings above plus the overrides for the matching block below.
+# SITE_URL comes from the deploy workflow (the Cloudflare Pages address).
+# ---------------------------------------------------------------------------
+[remotes.production]
+project_id = "dszldulsyoovtnsaquay"
+
+[remotes.production.auth]
+site_url = "env(SITE_URL)"
+additional_redirect_urls = ["env(SITE_URL)"]
+
+[remotes.production.auth.rate_limit]
+# The built-in sender allows 2 emails/hour. Raise this after adding custom SMTP (docs/RUNBOOK.md).
+email_sent = 2

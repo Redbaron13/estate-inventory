@@ -1,0 +1,128 @@
+# Release pipeline.
+#
+#   push to main  ->  full CI  ->  staging   (only if a staging project is configured)
+#   manual run    ->  full CI  ->  staging or production
+#
+# Production deploys are always manual: Actions > Deploy > Run workflow,
+# choose "production" and type the word production to confirm. Order matters
+# and is fixed: database migrations (forward only), auth settings, the API
+# function, then the app. The phone picks up the new app version and shows
+# "A new version is ready" (nothing in progress is interrupted).
+#
+# Secrets (repository secrets; GitHub Free has no per-environment secrets for
+# private repositories, so names are prefixed). See docs/PIPELINE.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+      confirm:
+        description: To deploy to production, type the word production
+        required: false
+
+concurrency:
+  group: deploy-${{ inputs.target || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET: ${{ inputs.target || 'staging' }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_PROJECT_REF || secrets.STAGING_SUPABASE_PROJECT_REF }}
+      DB_PASSWORD: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_DB_PASSWORD || secrets.STAGING_SUPABASE_DB_PASSWORD }}
+      VITE_SUPABASE_URL: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_URL || secrets.STAGING_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_ANON_KEY || secrets.STAGING_SUPABASE_ANON_KEY }}
+      SITE_URL: ${{ inputs.target == 'production' && secrets.PROD_SITE_URL || secrets.STAGING_SITE_URL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'estate-inventory' }}
+      SUPABASE_CLI_VERSION: 2.120.0
+    steps:
+      - name: Check target and configuration
+        id: gate
+        run: |
+          if [ "$TARGET" = "production" ] && [ "${{ inputs.confirm }}" != "production" ]; then
+            echo "::error::To deploy to production, type the word production in the confirm box."; exit 1
+          fi
+          if [ -z "$PROJECT_REF" ]; then
+            if [ "$TARGET" = "staging" ]; then
+              echo "No staging project configured (STAGING_SUPABASE_PROJECT_REF). Skipping the automatic staging deploy."
+              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            echo "::error::PROD_SUPABASE_PROJECT_REF is not set."; exit 1
+          fi
+          for v in SUPABASE_ACCESS_TOKEN DB_PASSWORD VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SITE_URL CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v ($TARGET). See docs/PIPELINE.md."; exit 1; fi
+          done
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.gate.outputs.skip != 'true'
+        run: npm ci
+      - if: steps.gate.outputs.skip != 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Database migrations (forward only, never the demo seed)
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
+          supabase db push --dry-run --password "$DB_PASSWORD"
+          supabase db push --yes --password "$DB_PASSWORD"
+
+      - name: Auth settings (sign-in codes, templates, redirect URLs)
+        if: steps.gate.outputs.skip != 'true'
+        run: supabase config push --project-ref "$PROJECT_REF" --yes
+
+      - name: API function
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$SITE_URL"
+          supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Build the app
+        if: steps.gate.outputs.skip != 'true'
+        run: npm run build
+        env:
+          VITE_APP_ENV: ${{ env.TARGET }}
+          VITE_APP_VERSION: ${{ github.sha }}
+
+      - name: Publish to Cloudflare Pages
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          BRANCH=$([ "$TARGET" = "production" ] && echo main || echo staging)
+          npx wrangler pages project create "$PAGES_PROJECT" --production-branch main 2>/dev/null || true
+          npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "$BRANCH" --commit-hash "$GITHUB_SHA" --commit-dirty=true
+
+      - name: Smoke test
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          curl -fsS "$VITE_SUPABASE_URL/functions/v1/api/v1/health"
+          curl -fsS -o /dev/null "$SITE_URL"
+          echo "### Deployed to $TARGET" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

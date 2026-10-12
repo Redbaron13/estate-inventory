@@ -1,0 +1,141 @@
+# Nightly backup to the locked Cloudflare R2 vault.
+#
+#   1. Re-verify every estate's history chain (independently, in Node) and
+#      confirm earlier fingerprints are unchanged.
+#   2. Dump the database (roles, schema, data incl. auth and storage
+#      metadata, plus the app's policies and triggers on Supabase-managed
+#      tables, which `db dump` skips), encrypt it with age, upload it under
+#      db/daily/ (and db/monthly/ once a month). restore-drill.yml restores
+#      exactly this format every month.
+#   3. Copy every new photo and document to media/ (content-addressed;
+#      existing files are never modified: --immutable).
+#   4. Check every recorded file is in the vault and re-hash new ones; the
+#      result is written to the database (media_verifications).
+#
+# Bucket lock rules on db/daily/ (1 year), db/monthly/, media/ and heads/
+# (7 years) stop anyone deleting or overwriting these copies before the
+# retention period ends, including whoever holds these keys
+# (setup/r2-setup.sh).
+# A failure emails the repository owner (GitHub's default for scheduled runs).
+name: Backup
+
+on:
+  schedule:
+    - cron: '17 7 * * *'   # 07:17 UTC: 3:17 AM Eastern in summer, 2:17 AM in winter
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+      PROJECT_REF: ${{ secrets.PROD_SUPABASE_PROJECT_REF }}
+      AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'estate-inventory-vault' }}
+      # rclone remotes from environment variables (no config file on disk)
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+      RCLONE_CONFIG_SB_TYPE: s3
+      RCLONE_CONFIG_SB_PROVIDER: Other
+      RCLONE_CONFIG_SB_ACCESS_KEY_ID: ${{ secrets.PROD_STORAGE_S3_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_SB_SECRET_ACCESS_KEY: ${{ secrets.PROD_STORAGE_S3_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_SB_ENDPOINT: https://${{ secrets.PROD_SUPABASE_PROJECT_REF }}.storage.supabase.co/storage/v1/s3
+      RCLONE_CONFIG_SB_REGION: ${{ vars.SUPABASE_REGION || 'us-east-1' }}
+      RCLONE_CONFIG_SB_FORCE_PATH_STYLE: 'true'
+    steps:
+      - name: Check configuration
+        run: |
+          for v in DB_URL SUPABASE_URL PROJECT_REF AGE_RECIPIENT RCLONE_CONFIG_R2_ACCESS_KEY_ID RCLONE_CONFIG_R2_SECRET_ACCESS_KEY RCLONE_CONFIG_SB_ACCESS_KEY_ID RCLONE_CONFIG_SB_SECRET_ACCESS_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Backups are not configured: $v is missing. See docs/RUNBOOK.md, 'Backups'."; exit 1; fi
+          done
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - name: Install rclone and age
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Verify every history chain against last night's fingerprints
+        run: |
+          rclone copyto "r2:$R2_BUCKET/state/heads-latest.json" heads.json 2>/dev/null || echo '{}' > heads.json
+          DATABASE_URL="$DB_URL" node scripts/verify-ledger.mjs --heads heads.json --write-heads heads-new.json
+
+      - name: Dump, encrypt and upload the database
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y-%m-%dT%H%M%SZ); MONTH=$(date -u +%Y/%m); YEAR=$(date -u +%Y)
+          mkdir -p out && cd out
+          supabase db dump --db-url "$DB_URL" -f roles.sql --role-only
+          supabase db dump --db-url "$DB_URL" -f schema.sql
+          # Unused storage feature tables are excluded: they are empty and the
+          # postgres role cannot write them on restore.
+          supabase db dump --db-url "$DB_URL" -f data.sql --use-copy --data-only -s public,auth,storage \
+            -x storage.buckets_analytics,storage.buckets_vectors,storage.iceberg_namespaces,storage.iceberg_tables,storage.vector_indexes,storage.s3_multipart_uploads,storage.s3_multipart_uploads_parts
+          psql "$DB_URL" -At -v ON_ERROR_STOP=1 -f ../scripts/dump-platform-hooks.sql > hooks.sql
+          grep -q "on_auth_user_created" hooks.sql || { echo "::error::hooks.sql is missing the sign-up trigger"; exit 1; }
+          psql "$DB_URL" -At -c "select version from supabase_migrations.schema_migrations order by version" > migrations.txt
+          psql "$DB_URL" -At -c "select json_object_agg(t, n) from (
+              select 'items' t, count(*) n from public.items union all
+              select 'media', count(*) from public.media union all
+              select 'ledger', count(*) from public.ledger union all
+              select 'estates', count(*) from public.estates union all
+              select 'valuations', count(*) from public.valuations union all
+              select 'proposals', count(*) from public.proposals union all
+              select 'custody_events', count(*) from public.custody_events) c" > counts.json
+          cp ../heads-new.json heads.json
+          tar czf "db-$STAMP.tar.gz" roles.sql schema.sql data.sql hooks.sql migrations.txt counts.json heads.json
+          age -r "$AGE_RECIPIENT" -o "db-$STAMP.tar.gz.age" "db-$STAMP.tar.gz"
+          sha256sum "db-$STAMP.tar.gz.age" > "db-$STAMP.tar.gz.age.sha256"
+          # Nightly copies are locked for a year then expire; the first copy of
+          # each month is also kept under monthly/, locked for 7 years
+          # (setup/r2-setup.sh). Keeps the vault inside R2's free tier.
+          rclone copy "db-$STAMP.tar.gz.age" "r2:$R2_BUCKET/db/daily/$MONTH/" --immutable
+          rclone copy "db-$STAMP.tar.gz.age.sha256" "r2:$R2_BUCKET/db/daily/$MONTH/" --immutable
+          if ! rclone lsf "r2:$R2_BUCKET/db/monthly/$YEAR/" 2>/dev/null | grep -q "^db-$(date -u +%Y-%m)"; then
+            rclone copy "db-$STAMP.tar.gz.age" "r2:$R2_BUCKET/db/monthly/$YEAR/" --immutable
+            rclone copy "db-$STAMP.tar.gz.age.sha256" "r2:$R2_BUCKET/db/monthly/$YEAR/" --immutable
+            echo "- Kept as this month's 7-year copy" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          rclone copyto heads.json "r2:$R2_BUCKET/heads/heads-$STAMP.json" --immutable
+          echo "db/daily/$MONTH/db-$STAMP.tar.gz.age" > latest-db.txt
+          rclone copyto latest-db.txt "r2:$R2_BUCKET/state/latest-db.txt"
+          rclone copyto heads.json "r2:$R2_BUCKET/state/heads-latest.json"
+          echo "### Database backup" >> "$GITHUB_STEP_SUMMARY"
+          echo "- db/daily/$MONTH/db-$STAMP.tar.gz.age ($(du -h "db-$STAMP.tar.gz.age" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rows: $(cat counts.json)" >> "$GITHUB_STEP_SUMMARY"
+          rm -f roles.sql schema.sql data.sql hooks.sql "db-$STAMP.tar.gz"
+
+      - name: Copy new photos and documents to the vault
+        run: |
+          rclone copy sb:estate-media "r2:$R2_BUCKET/media" --immutable --checksum --transfers 8 --stats-one-line --stats 60s
+          echo "- Media copied: $(rclone size --json "r2:$R2_BUCKET/media" | jq -r '"\(.count) files, \(.bytes/1048576|floor) MB"')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the vault holds every recorded file
+        run: |
+          rclone lsjson --recursive --files-only "r2:$R2_BUCKET/media" > r2-media.json
+          DATABASE_URL="$DB_URL" node scripts/verify-backup.mjs --listing r2-media.json --remote "r2:$R2_BUCKET/media" --rehash 300 --sample 20
+
+      - name: Keep the free-tier project active
+        if: always()
+        run: curl -fsS "$SUPABASE_URL/functions/v1/api/v1/health" || true
