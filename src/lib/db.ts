@@ -30,6 +30,7 @@ export interface OutboxOp {
   error_code?: string;
   error_details?: unknown;
   upload?: { sha256: string; thumb_sha256: string | null; mime_type: string };
+  rollback?: { item?: Pick<Item, 'status' | 'merged_into_id'> };
 }
 
 export interface StoredBlob {

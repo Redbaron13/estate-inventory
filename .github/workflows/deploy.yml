@@ -47,7 +47,7 @@ jobs:
   # to main or mainbranch once all tests pass.
   pages:
     needs: ci
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.confirm == 'production')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:

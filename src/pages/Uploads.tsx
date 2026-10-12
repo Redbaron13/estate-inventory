@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { EmptyState, Notice, PageHeader, ToneChip } from '../components/ui';
+import { ActionDialog, EmptyState, Notice, PageHeader, ToneChip } from '../components/ui';
 import { db } from '../lib/db';
 import { useEstateId, useSyncState } from '../lib/hooks';
 import { discardOp, reapplyOnLatest, retryOp } from '../lib/outbox';
@@ -13,6 +14,7 @@ export default function Uploads() {
   const drafts = useLiveQuery(() => db.drafts.where('estate_id').equals(estateId).toArray(), [estateId]) ?? [];
   const problems = ops.filter((o) => o.status !== 'pending');
   const pending = ops.filter((o) => o.status === 'pending');
+  const [discardSeq, setDiscardSeq] = useState<number | null>(null);
 
   return (
     <div>
@@ -42,7 +44,7 @@ export default function Uploads() {
                       <button type="button" className="btn btn-primary" onClick={() => void reapplyOnLatest(o.seq!)}>Use my change on the latest version</button>
                     )}
                     <button type="button" className="btn btn-secondary" onClick={() => void retryOp(o.seq!)}>Try again</button>
-                    <button type="button" className="btn btn-quiet" onClick={() => { if (window.confirm('Remove this change? The server refused it, so it never became part of the shared record.')) void discardOp(o.seq!); }}>Remove it</button>
+                    <button type="button" className="btn btn-quiet" onClick={() => setDiscardSeq(o.seq!)}>Remove it</button>
                   </div>
                 </li>
               );
@@ -78,6 +80,16 @@ export default function Uploads() {
           {sync.lastSyncAt ? `Last synced ${new Date(sync.lastSyncAt).toLocaleTimeString()}.` : ''}
         </EmptyState>
       ) : null}
+      <ActionDialog
+        open={discardSeq !== null}
+        onClose={() => setDiscardSeq(null)}
+        title="Remove this change?"
+        confirmLabel="Remove change"
+        danger
+        onConfirm={() => discardSeq === null ? undefined : discardOp(discardSeq)}
+      >
+        The server refused it, so it never became part of the shared record.
+      </ActionDialog>
     </div>
   );
 }

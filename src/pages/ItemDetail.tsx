@@ -10,7 +10,7 @@ import {
 } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
 import { CategoryPicker, LocationPicker, MemberPicker } from '../components/pickers';
-import { CodeTag, Dialog, ErrorText, Field, Notice, PendingMarker, StatusChip, Thumb, ToneChip } from '../components/ui';
+import { ActionDialog, CodeTag, Dialog, ErrorText, Field, Notice, PendingMarker, StatusChip, Thumb, ToneChip } from '../components/ui';
 import {
   addPhotos, addValuation, completeProposal, createProposal, decide, invalidateDecision, openRound, recordCustody,
   redactMedia, resolveRound, reviewDuplicate, setClaim, updateItem, withdrawProposal,
@@ -21,6 +21,14 @@ import { useEstateData, useEstateId, useMe, useMyMembership } from '../lib/hooks
 import { preparePhoto } from '../lib/images';
 
 const fmtDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
+type ItemActionRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  inputLabel?: string;
+  danger?: boolean;
+  run: (value: string) => void | Promise<void>;
+};
 
 function Facts({ item, data }: { item: Item; data: EstateData }) {
   const locs = byId(data.locations);
@@ -340,7 +348,7 @@ function RoundSection({ item, data, me, member }: { item: Item; data: EstateData
   );
 }
 
-function ProposalSection({ item, data, me, member }: { item: Item; data: EstateData; me: string; member: Member | null }) {
+function ProposalSection({ item, data, me, member, onAction }: { item: Item; data: EstateData; me: string; member: Member | null; onAction: (request: ItemActionRequest) => void }) {
   const view = openProposalFor(item.id, data);
   const [comment, setComment] = useState('');
   const [completing, setCompleting] = useState(false);
@@ -369,7 +377,13 @@ function ProposalSection({ item, data, me, member }: { item: Item; data: EstateD
                     {d.decision === 'APPROVE' ? 'Approved' : d.decision === 'REJECT' ? 'Rejected' : 'Abstained'}
                   </ToneChip>
                   {member?.role === 'ADMINISTRATOR' && view.status === 'PENDING' && d.user_id !== me && (
-                    <button type="button" className="text-[0.85rem] font-bold text-action underline" onClick={() => { const r = window.prompt('Why set this decision aside? The original stays visible.'); if (r) void invalidateDecision(p.estate_id, d.id, item.id, r); }}>Set aside</button>
+                    <button type="button" className="text-[0.85rem] font-bold text-action underline" onClick={() => onAction({
+                      title: 'Set this decision aside?',
+                      message: 'The original stays visible in the history.',
+                      confirmLabel: 'Set aside',
+                      inputLabel: 'Reason',
+                      run: (reason) => invalidateDecision(p.estate_id, d.id, item.id, reason),
+                    })}>Set aside</button>
                   )}
                 </span>
               ) : (
@@ -394,13 +408,31 @@ function ProposalSection({ item, data, me, member }: { item: Item; data: EstateD
         <button type="button" className="btn btn-primary btn-block mb-2" onClick={() => setCompleting(true)}><Icon name="check" /> Record that it happened</button>
       )}
       {canWithdraw && (
-        <button type="button" className="btn btn-quiet" onClick={() => { const r = window.prompt(view.status === 'APPROVED' ? 'Why is this approved decision being cancelled?' : 'Why withdraw this proposal?'); if (r) void withdrawProposal(p, r); }}>
+        <button type="button" className="btn btn-quiet" onClick={() => onAction({
+          title: view.status === 'APPROVED' ? 'Cancel this approved decision?' : 'Withdraw this proposal?',
+          message: 'The original record stays in the history.',
+          confirmLabel: view.status === 'APPROVED' ? 'Cancel decision' : 'Withdraw proposal',
+          inputLabel: 'Reason',
+          danger: true,
+          run: (reason) => withdrawProposal(p, reason),
+        })}>
           {view.status === 'APPROVED' ? 'Cancel (it fell through)' : 'Withdraw proposal'}
         </button>
       )}
       <Dialog open={completing} onClose={() => setCompleting(false)} title="Record that it happened">
         <CompleteDialog proposalId={p.id} data={data} onClose={() => setCompleting(false)} />
       </Dialog>
+      <ActionDialog
+        open={!!action}
+        onClose={() => setAction(null)}
+        title={action?.title ?? ''}
+        confirmLabel={action?.confirmLabel ?? 'Continue'}
+        inputLabel={action?.inputLabel}
+        danger={action?.danger}
+        onConfirm={(value) => action?.run(value)}
+      >
+        {action?.message}
+      </ActionDialog>
     </section>
   );
 }
@@ -455,6 +487,9 @@ export default function ItemDetail() {
   const member = useMyMembership(data, me);
   const [dialog, setDialog] = useState<'edit' | 'move' | 'value' | 'propose' | null>(null);
   const [viewing, setViewing] = useState<Media | null>(null);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const [action, setAction] = useState<ItemActionRequest | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const markRef = useRef<HTMLInputElement>(null);
@@ -481,6 +516,19 @@ export default function ItemDetail() {
       prepared.push({ ...(await preparePhoto(f)), kind: k });
     }
     await addPhotos(item!, prepared);
+  }
+
+  async function printLabel() {
+    setPrinting(true);
+    setPrintError(null);
+    try {
+      const { itemLabelsPdf } = await import('../lib/pdf');
+      await saver.deliver(blobFile(itemLabelsPdf([item!], data!.locations), `label-${item!.item_code}.pdf`, 'application/pdf'));
+    } catch (e) {
+      setPrintError((e as Error).message || 'The label could not be prepared.');
+    } finally {
+      setPrinting(false);
+    }
   }
 
   return (
@@ -530,13 +578,14 @@ export default function ItemDetail() {
           <button type="button" className="btn btn-secondary" onClick={() => setDialog('edit')}><Icon name="pencil" /> Edit details</button>
           <button type="button" className="btn btn-secondary" onClick={() => setDialog('move')}><Icon name="map" /> Move</button>
           <button type="button" className="btn btn-secondary" onClick={() => void updateItem(item, { mark_verified: true })}><Icon name="check" /> It's here</button>
-          <button type="button" className="btn btn-secondary" onClick={async () => { const { itemLabelsPdf } = await import('../lib/pdf'); await saver.deliver(blobFile(itemLabelsPdf([item], data.locations), `label-${item.item_code}.pdf`, 'application/pdf')); }}><Icon name="tag" /> Print label</button>
+          <button type="button" className="btn btn-secondary" onClick={() => void printLabel()} disabled={printing}><Icon name="tag" /> {printing ? 'Preparing label…' : 'Print label'}</button>
         </div>
       )}
+      <ErrorText error={printError} />
       {saver.panel}
 
       {!gone && <RoundSection item={item} data={data} me={me} member={member} />}
-      <ProposalSection item={item} data={data} me={me} member={member} />
+      <ProposalSection item={item} data={data} me={me} member={member} onAction={setAction} />
       {!gone && !busy && member?.can_propose && (
         <button type="button" className="btn btn-primary btn-block mb-6" onClick={() => setDialog('propose')}><Icon name="scale" /> Decide what happens to it</button>
       )}
@@ -583,7 +632,13 @@ export default function ItemDetail() {
       {!gone && member?.can_edit_items && (
         <div className="mb-6 flex flex-wrap gap-2">
           {item.status !== 'MISSING' ? (
-            <button type="button" className="btn btn-quiet" onClick={() => { if (window.confirm('Report this item as missing? Everyone will see it in the exceptions report.')) void recordCustody(item, { event_type: 'REPORTED_MISSING' }); }}>Report missing</button>
+            <button type="button" className="btn btn-quiet" onClick={() => setAction({
+              title: 'Report this item as missing?',
+              message: 'Everyone will see it in the exceptions report.',
+              confirmLabel: 'Report missing',
+              danger: true,
+              run: () => recordCustody(item, { event_type: 'REPORTED_MISSING' }),
+            })}>Report missing</button>
           ) : (
             <button type="button" className="btn btn-quiet" onClick={() => void recordCustody(item, { event_type: 'FOUND' })}>Mark as found</button>
           )}
@@ -602,7 +657,14 @@ export default function ItemDetail() {
             <Thumb media={viewing} full className="mb-4 w-full" />
             <p className="mb-4 text-[0.88rem] text-ink-soft">Added by {memberName(viewing.uploaded_by, data)}, {fmtDate(viewing.created_at)}. Fingerprint {viewing.sha256.slice(0, 16)}…</p>
             {(viewing.uploaded_by === me || member?.role === 'ADMINISTRATOR' || member?.role === 'EXECUTOR') && (
-              <button type="button" className="btn btn-quiet" onClick={() => { const r = window.prompt('Why hide this photo? It is removed from view for everyone but kept in the locked backup.'); if (r) { void redactMedia(viewing, r); setViewing(null); } }}>Hide this photo (uploaded by mistake)</button>
+              <button type="button" className="btn btn-quiet" onClick={() => setAction({
+                title: 'Hide this photo?',
+                message: 'It is removed from view for everyone but kept in the locked backup.',
+                confirmLabel: 'Hide photo',
+                inputLabel: 'Reason',
+                danger: true,
+                run: async (reason) => { await redactMedia(viewing, reason); setViewing(null); },
+              })}>Hide this photo (uploaded by mistake)</button>
             )}
           </div>
         )}
