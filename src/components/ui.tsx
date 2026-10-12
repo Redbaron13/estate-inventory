@@ -157,14 +157,14 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
 
 export function LinkRow({ to, icon, title, detail, count }: { to: string; icon: IconName; title: string; detail?: string; count?: number }) {
   return (
-    <Link to={to} className="flex min-h-16 items-center gap-4 border-b border-line px-1 py-3 last:border-0">
-      <span className="text-action"><Icon name={icon} size={26} /></span>
+    <Link to={to} className="group flex min-h-16 items-center gap-4 border-b border-line px-2 py-3.5 last:border-0 hover:bg-sunk/40 active:bg-sunk/60 transition-colors rounded-lg">
+      <span className="text-action transition-transform duration-150 group-hover:scale-105"><Icon name={icon} size={26} /></span>
       <span className="min-w-0 flex-1">
         <span className="block font-bold">{title}</span>
         {detail && <span className="block text-[0.92rem] text-ink-soft">{detail}</span>}
       </span>
-      {count !== undefined && <span className="tabular rounded-full bg-sunk px-2.5 py-0.5 font-bold">{count}</span>}
-      <Icon name="forward" className="text-ink-soft" />
+      {count !== undefined && <span className="tabular rounded-full bg-sunk px-2.5 py-0.5 font-bold shadow-2xs">{count}</span>}
+      <Icon name="forward" className="text-ink-soft transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
 }
