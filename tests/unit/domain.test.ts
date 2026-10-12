@@ -118,7 +118,7 @@ describe('CSV', () => {
       headers: ['a', 'b', 'c', 'd', 'e', 'f'],
       rows: [['=1+1', '+SUM(A1:A2)', '-1+2', '@SUM(A1:A2)', '  =1+1', '\t=1+1']],
     });
-    expect(csv).toContain("'=1+1,'+SUM(A1:A2),'-1+2,'@SUM(A1:A2),'  =1+1,\"\t=1+1\"");
+    expect(csv).toContain("'=1+1,'+SUM(A1:A2),'-1+2,'@SUM(A1:A2),'  =1+1,'\t=1+1");
   });
 
   it('leaves numeric values as numbers', () => {
