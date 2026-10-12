@@ -28,6 +28,8 @@ function previewHeaders(mode: string): Record<string, string> {
 // The whole app (code, fonts, barcode decoder) is stored on the phone at
 // install time so it opens and works with no signal. See src/sw.ts.
 export default defineConfig(({ mode }) => ({
+  // Served from a sub-path on GitHub Pages (VITE_BASE=/estate-inventory/); '/' elsewhere.
+  base: process.env.VITE_BASE || '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -45,16 +47,16 @@ export default defineConfig(({ mode }) => ({
         name: 'Estate Inventory',
         short_name: 'Estate',
         description: "Record a loved one's belongings and decide together where each one goes.",
-        start_url: '/',
-        scope: '/',
+        start_url: '.',
+        scope: '.',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#F2F4F1',
         theme_color: '#1D3A57',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       devOptions: { enabled: false, type: 'module' },

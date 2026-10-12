@@ -167,7 +167,7 @@ function Invites({ estateId }: { estateId: string }) {
     } catch (err) { setError((err as Error).message); }
   }
   const pretty = code?.match(/.{1,4}/g)?.join('-') ?? '';
-  const link = code ? `${location.origin}/join?code=${code}` : '';
+  const link = code ? `${location.origin}${import.meta.env.BASE_URL}join?code=${code}` : '';
   const message = code ? `You're invited to the "${data.estate?.name}" estate inventory. Open ${link} and sign in with ${email}. Invitation code: ${pretty}` : '';
   return (
     <section className="mb-8" aria-labelledby="inv-h">

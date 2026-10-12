@@ -11,7 +11,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 // Every page of the app is the same single-page shell.
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/functions\//, /^\/rest\//, /^\/auth\//, /^\/storage\//] }));
+registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`), { denylist: [/^\/functions\//, /^\/rest\//, /^\/auth\//, /^\/storage\//] }));
 
 // New versions wait until the person taps "Restart app", so nothing in
 // progress is interrupted.

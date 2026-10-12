@@ -4,7 +4,7 @@ dev-dist/
 .env
 .env.*
 !.env.example
-!.env.production
+!.env.hosted
 supabase/.temp/
 supabase/.branches/
 supabase/functions/.env.local
@@ -15,3 +15,4 @@ coverage/
 .DS_Store
 Thumbs.db
 supabase/functions/.local-ca.crt
+dist-pages/

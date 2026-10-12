@@ -38,6 +38,42 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
+  # The app on GitHub Pages (https://redbaron13.github.io/estate-inventory/),
+  # pointed at the hosted Supabase project (.env.hosted). Runs on every push
+  # to main once all tests pass.
+  pages:
+    needs: ci
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build for GitHub Pages
+        run: |
+          npx tsc -b
+          VITE_BASE=/estate-inventory/ VITE_APP_VERSION=${GITHUB_SHA::7} npx vite build --mode hosted --outDir dist-pages
+          cp dist-pages/index.html dist-pages/404.html
+          touch dist-pages/.nojekyll
+          rm -f dist-pages/_headers
+      - name: Publish to the gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist-pages
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: Publish app build
+
   deploy:
     needs: ci
     runs-on: ubuntu-24.04

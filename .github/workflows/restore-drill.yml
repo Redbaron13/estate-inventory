@@ -20,7 +20,27 @@ permissions:
   contents: read
 
 jobs:
+  # Skipped with a notice until the backup key and vault keys are set up.
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.config.outputs.ready }}
+    steps:
+      - id: config
+        env:
+          AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          R2_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: |
+          if [ -z "$AGE_IDENTITY" ] || [ -z "$R2_KEY" ]; then
+            echo "::notice::Restore drill not set up yet (BACKUP_AGE_IDENTITY, R2 keys). See docs/RUNBOOK.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
   drill:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -34,11 +54,6 @@ jobs:
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
       RESTORED: postgresql://postgres:postgres@127.0.0.1:54322/postgres
     steps:
-      - name: Check configuration
-        run: |
-          if [ -z "$AGE_IDENTITY" ] || [ -z "$RCLONE_CONFIG_R2_ACCESS_KEY_ID" ]; then
-            echo "::error::Restore drill is not configured (BACKUP_AGE_IDENTITY, R2 keys). See docs/RUNBOOK.md."; exit 1
-          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
