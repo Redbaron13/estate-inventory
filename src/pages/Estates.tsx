@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROLE_LABELS } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
-import { ErrorText, Field, Notice } from '../components/ui';
+import { ActionDialog, ErrorText, Field, Notice } from '../components/ui';
 import { online } from '../lib/actions';
 import { useMyEstates, useOnline } from '../lib/hooks';
 import { supabase } from '../lib/supabase';
@@ -19,6 +19,7 @@ export default function Estates() {
   const [role, setRole] = useState<'ADMINISTRATOR' | 'EXECUTOR'>('ADMINISTRATOR');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signOutPending, setSignOutPending] = useState<number | null>(null);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -37,7 +38,14 @@ export default function Estates() {
 
   async function signOut() {
     const pending = await db.outbox.count();
-    if (pending && !window.confirm(`${pending} change(s) have not uploaded yet. They stay on this phone and upload when you sign in again. Sign out?`)) return;
+    if (pending) {
+      setSignOutPending(pending);
+      return;
+    }
+    await finishSignOut();
+  }
+
+  async function finishSignOut() {
     await supabase.auth.signOut();
     navigate('/sign-in');
   }
@@ -95,6 +103,15 @@ export default function Estates() {
       )}
 
       <button type="button" className="btn btn-quiet mt-10" onClick={signOut}><Icon name="lock" size={18} /> Sign out</button>
+      <ActionDialog
+        open={signOutPending !== null}
+        onClose={() => setSignOutPending(null)}
+        title="Sign out with changes waiting?"
+        confirmLabel="Sign out"
+        onConfirm={finishSignOut}
+      >
+        {signOutPending} change{signOutPending === 1 ? '' : 's'} have not uploaded yet. They stay on this phone and upload when you sign in again.
+      </ActionDialog>
     </main>
   );
 }

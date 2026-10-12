@@ -7,7 +7,7 @@ import {
 import { Icon } from '../components/Icon';
 import { CategoryPicker, LocationPicker, MemberPicker } from '../components/pickers';
 import { Scanner } from '../components/Scanner';
-import { CodeTag, ErrorText, Field, Notice, PageHeader, Spinner, StatusChip, Thumb } from '../components/ui';
+import { ActionDialog, CodeTag, ErrorText, Field, Notice, PageHeader, Spinner, StatusChip, Thumb } from '../components/ui';
 import { addPhotos, captureItem, online, updateItem, type CapturePhoto, type NextStep } from '../lib/actions';
 import { db, getMeta, setMeta } from '../lib/db';
 import { useBlobUrl, useEstateData, useEstateId, useMe, useMyMembership } from '../lib/hooks';
@@ -72,6 +72,7 @@ export default function Capture() {
   const [saved, setSaved] = useState<{ item?: Item; draft?: boolean } | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const saver = useFileSaver();
@@ -218,10 +219,10 @@ export default function Capture() {
   }
 
   async function discard() {
-    if (!window.confirm('Discard this unfinished item? Photos taken for it will be removed from this phone.')) return;
     await db.blobs.bulkDelete(wip!.photos.flatMap((p) => [p.sha256, p.thumb_sha256]));
     await setMeta(wipKey, null);
     setWip(blankWip({ category: wip!.category, foundLocationId: wip!.foundLocationId, locationId: wip!.locationId }));
+    setConfirmDiscard(false);
   }
 
   const locs = byId(data.locations);
@@ -257,7 +258,7 @@ export default function Capture() {
     <div>
       <PageHeader title="Add an item" back={wip.step === 'capture' ? undefined : true}>
         {(wip.photos.length > 0 || wip.title) && (
-          <button type="button" className="btn btn-quiet min-h-11" onClick={() => void discard()}>Discard</button>
+          <button type="button" className="btn btn-quiet min-h-11" onClick={() => setConfirmDiscard(true)}>Discard</button>
         )}
       </PageHeader>
       {busy && <p className="mb-4"><Spinner label={busy} /></p>}
@@ -281,6 +282,16 @@ export default function Capture() {
                         <option key={k} value={k}>{MEDIA_KIND_LABELS[k]}</option>
                       ))}
                     </select>
+                    <ActionDialog
+                      open={confirmDiscard}
+                      onClose={() => setConfirmDiscard(false)}
+                      title="Discard this unfinished item?"
+                      confirmLabel="Discard item"
+                      danger
+                      onConfirm={discard}
+                    >
+                      Photos taken for this item will be removed from this phone.
+                    </ActionDialog>
                   </div>
                 ))}
               </div>
