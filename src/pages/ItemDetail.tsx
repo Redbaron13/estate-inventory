@@ -422,17 +422,6 @@ function ProposalSection({ item, data, me, member, onAction }: { item: Item; dat
       <Dialog open={completing} onClose={() => setCompleting(false)} title="Record that it happened">
         <CompleteDialog proposalId={p.id} data={data} onClose={() => setCompleting(false)} />
       </Dialog>
-      <ActionDialog
-        open={!!action}
-        onClose={() => setAction(null)}
-        title={action?.title ?? ''}
-        confirmLabel={action?.confirmLabel ?? 'Continue'}
-        inputLabel={action?.inputLabel}
-        danger={action?.danger}
-        onConfirm={(value) => action?.run(value)}
-      >
-        {action?.message}
-      </ActionDialog>
     </section>
   );
 }
@@ -669,6 +658,17 @@ export default function ItemDetail() {
           </div>
         )}
       </Dialog>
+      <ActionDialog
+        open={!!action}
+        onClose={() => setAction(null)}
+        title={action?.title ?? ''}
+        confirmLabel={action?.confirmLabel ?? 'Continue'}
+        inputLabel={action?.inputLabel}
+        danger={action?.danger}
+        onConfirm={(value) => action?.run(value)}
+      >
+        {action?.message}
+      </ActionDialog>
     </div>
   );
 }
