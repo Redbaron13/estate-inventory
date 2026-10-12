@@ -179,7 +179,7 @@ export function deriveLocationTag(name: string, usedTags: Iterable<string> = [])
   const used = new Set(usedTags);
   const words = name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, ' ')
     .split(' ')

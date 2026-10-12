@@ -19,7 +19,7 @@ export function toCSV(table: Table): string {
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // Leading BOM so Excel opens UTF-8 correctly.
-  return '﻿' + [table.headers, ...table.rows].map((r) => r.map(esc).join(',')).join('\r\n') + '\r\n';
+  return '\uFEFF' + [table.headers, ...table.rows].map((r) => r.map(esc).join(',')).join('\r\n') + '\r\n';
 }
 
 const dateOnly = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : '');

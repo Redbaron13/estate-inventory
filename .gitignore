@@ -4,6 +4,7 @@ dev-dist/
 .env
 .env.*
 !.env.example
+!.env.production
 supabase/.temp/
 supabase/.branches/
 supabase/functions/.env.local

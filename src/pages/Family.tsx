@@ -45,6 +45,40 @@ function Profile() {
   );
 }
 
+function Password() {
+  const [password, setPassword] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function change(e: FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    setError(null);
+    if (password.length < 10) {
+      setError('Use at least 10 characters.');
+      return;
+    }
+    const { error: err } = await supabase.auth.updateUser({ password });
+    if (err) setError(err.message);
+    else {
+      setPassword('');
+      setMsg('Password changed.');
+    }
+  }
+  return (
+    <section className="mb-8" aria-labelledby="pw-h">
+      <h2 id="pw-h" className="mb-3">Password</h2>
+      <form onSubmit={(e) => void change(e)}>
+        <Field label="New password" htmlFor="pw-new" hint="At least 10 characters.">
+          <input id="pw-new" className="input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </Field>
+        <button className="btn btn-secondary">Change password</button>
+      </form>
+      <ErrorText error={error} />
+      {msg && <p className="mt-2 text-ink-soft" role="status">{msg}</p>}
+    </section>
+  );
+}
+
 function Members({ estateId, manager }: { estateId: string; manager: boolean }) {
   const data = useEstateData(estateId)!;
   const me = useMe();
@@ -259,6 +293,7 @@ export default function Family() {
       <PageHeader title="Family and settings" back={`/e/${estateId}/more`} />
       {!isOnline && <Notice tone="attention" icon="cloudOff">Changes on this page need a connection.</Notice>}
       <Profile />
+      {isOnline && <Password />}
       <Members estateId={estateId} manager={manager} />
       {manager && <Invites estateId={estateId} />}
       {manager && <Settings estateId={estateId} />}
