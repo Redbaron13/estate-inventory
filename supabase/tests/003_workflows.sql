@@ -3,7 +3,7 @@
 -- holds, and duplicate merging.
 begin;
 \ir _helpers.psql
-select plan(42);
+select plan(44);
 
 select tests.create_user('c0000000-0000-4000-8000-000000000001', 'ann@test.local', 'Ann Admin');
 select tests.create_user('c0000000-0000-4000-8000-000000000002', 'ben@test.local', 'Ben Brother');
@@ -65,6 +65,10 @@ select lives_ok($$select tests.api('update_item', '{"estate_id":"e0000000-0000-4
   'an edit with the current version succeeds');
 select throws_ok($$select public.api('update_item', '{"estate_id":"e0000000-0000-4000-8000-0000000000c1","item_id":"c1000000-0000-4000-8000-000000000001","version":1,"changes":{"description":"Stale"}}')$$,
   'EI409', null, 'an edit based on an old version is refused, not silently applied');
+select throws_ok($$select public.api('update_item', '{"estate_id":"e0000000-0000-4000-8000-0000000000c1","item_id":"c1000000-0000-4000-8000-000000000001","version":1,"changes":{"description":"Mine"},"base":{"description":null}}')$$,
+  'EI409', null, 'an offline edit to a field someone else changed is refused');
+select lives_ok($$select tests.api('update_item', '{"estate_id":"e0000000-0000-4000-8000-0000000000c1","item_id":"c1000000-0000-4000-8000-000000000001","version":1,"changes":{"condition":"Good"},"base":{"condition":null}}')$$,
+  'an offline edit to a field nobody else changed still applies');
 
 -- --------------------------------------------------------- sealed rounds
 create temp table rnd as

@@ -331,7 +331,10 @@ app.post('/estates/:estateId/items/:itemId/photos/upload-url', async (c) => {
     if (/exist/i.test(error.message)) return c.json({ path, already_uploaded: true });
     return c.json({ error: { code: 'EI403', message: `Upload not allowed: ${error.message}` } }, 403);
   }
-  return c.json({ path, already_uploaded: false, signed_url: data.signedUrl, token: data.token });
+  // signed_path is relative so the app can use its own Supabase URL (the
+  // function may see an internal hostname in local development).
+  const signed = new URL(data.signedUrl);
+  return c.json({ path, already_uploaded: false, signed_url: data.signedUrl, signed_path: signed.pathname + signed.search, token: data.token });
 });
 
 app.post('/estates/:estateId/items/:itemId/photos', async (c) => {

@@ -1146,6 +1146,7 @@ declare
   v_hold boolean := coalesce(private.jb(c, 'do_not_move'), false);
   v_verify boolean := coalesce(private.jb(c, 'mark_verified'), false);
   v_moved boolean;
+  v_conflicts text[];
 begin
   v_m := private.require_member(v_estate_id, 'edit');
   select * into v_item from public.items
@@ -1160,8 +1161,22 @@ begin
     perform private.fail('EI422', 'version is required.');
   end if;
   if private.ji(p, 'version') <> v_item.version then
-    perform private.fail('EI409', 'Someone else updated this item while you were editing it. Review their changes and try again.',
-                         jsonb_build_object('current', private.row_json(v_item)));
+    -- The item changed since this person loaded it. With "base" (the values
+    -- they saw for the fields they are changing), the edit still applies if
+    -- nobody else touched those same fields, e.g. a status change made by a
+    -- vote does not block correcting the description. Otherwise: conflict.
+    if jsonb_typeof(p -> 'base') = 'object' then
+      select array_agg(k order by k) into v_conflicts
+        from jsonb_object_keys(c) as k
+       where k <> 'mark_verified'
+         and coalesce(to_jsonb(v_item) -> k, 'null'::jsonb) is distinct from coalesce(p -> 'base' -> k, 'null'::jsonb);
+    else
+      v_conflicts := array['version'];
+    end if;
+    if v_conflicts is not null then
+      perform private.fail('EI409', 'Someone else changed this item while you were editing it. Review their changes and try again.',
+                           jsonb_build_object('current', private.row_json(v_item), 'fields', to_jsonb(v_conflicts)));
+    end if;
   end if;
 
   if c ? 'status' then

@@ -28,12 +28,16 @@
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "@fontsource/atkinson-hyperlegible-mono": "5.3.0",
     "@supabase/supabase-js": "2.117.3",
     "barcode-detector": "3.2.2",
     "dexie": "4.4.6",
+    "dexie-react-hooks": "4.4.0",
     "fflate": "0.8.3",
     "jspdf": "4.2.1",
     "jspdf-autotable": "5.0.8",
+    "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router-dom": "7.18.4",
