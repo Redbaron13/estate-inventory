@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { detectIn, detectInPhoto, getDetector, type Detected } from '../lib/barcode';
 import { Icon } from './Icon';
 import { ErrorText } from './ui';
+import { recordDiagnostic } from '../lib/diagnostics';
 
 /**
  * Live camera scanner for product barcodes and our QR labels. Works offline.
@@ -44,6 +45,11 @@ export function Scanner({ onDetect, continuous = false, hint }: { onDetect: (d: 
         loop();
       } catch (e) {
         setStatus('error');
+        const name = (e as Error).name;
+        const code = name === 'NotAllowedError' ? 'CAMERA_PERMISSION_DENIED'
+          : name === 'NotFoundError' ? 'CAMERA_NOT_FOUND'
+            : name === 'NotReadableError' ? 'CAMERA_IN_USE' : 'CAMERA_START_FAILED';
+        void recordDiagnostic('warning', 'compatibility', code, 'Camera scanning did not start; photo and manual entry remain available.');
         setError(
           (e as Error).name === 'NotAllowedError'
             ? 'The camera is blocked. Allow camera access for this app in your phone settings, or use the options below.'
@@ -108,6 +114,7 @@ export function Scanner({ onDetect, continuous = false, hint }: { onDetect: (d: 
       if (found) onDetect(found);
       else setError('No barcode found in that photo. Try again closer, with good light, or type the number.');
     } catch {
+      void recordDiagnostic('warning', 'compatibility', 'BARCODE_PHOTO_READ_FAILED', 'A barcode could not be read from a selected photo.');
       setError('That photo could not be read.');
     }
   }

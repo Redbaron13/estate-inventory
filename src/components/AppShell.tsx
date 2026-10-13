@@ -15,12 +15,13 @@ function SyncPill({ estateId }: { estateId: string }) {
   else if (!s.online) { tone = 'tone-attention'; icon = 'cloudOff'; text = s.pending ? `Offline: ${s.pending} waiting` : 'Offline'; }
   else if (s.syncing) { tone = 'tone-progress'; icon = 'refresh'; text = 'Saving…'; }
   else if (s.pending) { tone = 'tone-attention'; icon = 'cloud'; text = `${s.pending} to upload`; }
+  else if (s.lastError) { tone = 'tone-warning'; icon = 'alert'; text = 'Sync problem'; }
   return (
     <button
       type="button"
       className={`chip ${tone} min-h-9 shrink-0 cursor-pointer`}
       title={!s.online ? 'Saved on this phone. Uploads when you have signal.' : undefined}
-      onClick={() => (s.needsSignIn ? navigate('/sign-in') : s.problems || s.pending ? navigate(`/e/${estateId}/uploads`) : void syncNow())}
+      onClick={() => (s.needsSignIn ? navigate('/sign-in') : s.problems || s.pending || s.lastError ? navigate(`/e/${estateId}/uploads`) : void syncNow())}
       aria-live="polite"
     >
       <Icon name={icon} size={16} className={s.syncing ? 'animate-spin' : ''} />

@@ -122,7 +122,10 @@ export async function reapplyOnLatest(seq: number) {
 export async function discardOp(seq: number) {
   const op = await db.outbox.get(seq);
   if (!op || op.status === 'pending') return;
-  await db.transaction('rw', [db.outbox, db.items, db.locations, db.media, db.valuations, db.claims, db.custody_events], async () => {
+  await db.transaction('rw', [
+    db.outbox, db.items, db.locations, db.media, db.valuations, db.claims, db.custody_events,
+    db.grab_rounds, db.proposal_decisions, db.redactions, db.duplicate_reviews,
+  ], async () => {
     await db.outbox.delete(seq);
     if (op.path.endsWith('/items') && op.method === 'POST' && op.entity_id) await db.items.delete(op.entity_id);
     if (op.path.endsWith('/locations') && op.method === 'POST' && op.entity_id) await db.locations.delete(op.entity_id);
@@ -130,6 +133,19 @@ export async function discardOp(seq: number) {
     if (op.path.endsWith('/valuations') && op.body.id) await db.valuations.delete(String(op.body.id));
     if (op.path.endsWith('/claims') && op.body.id) await db.claims.delete(String(op.body.id));
     if (op.path.endsWith('/custody') && op.body.id) await db.custody_events.delete(String(op.body.id));
+    if (op.path.endsWith('/grab-rounds') && op.body.id) await db.grab_rounds.delete(String(op.body.id));
+    if (op.path.endsWith('/decision')) await db.proposal_decisions.delete(op.id);
+    if (op.path.endsWith('/redact')) await db.redactions.delete(op.id);
+    if (op.path.endsWith('/duplicates/review') && op.body.id) {
+      const review = await db.duplicate_reviews.get(String(op.body.id));
+      await db.duplicate_reviews.delete(String(op.body.id));
+      if (review?.verdict === 'SAME_ITEM' && op.rollback?.item && op.entity_id) {
+        const item = await db.items.get(op.entity_id);
+        if (item?.status === 'MERGED' && item.merged_into_id === review.other_item_id) {
+          await db.items.put({ ...item, ...op.rollback.item });
+        }
+      }
+    }
   });
 }
 
