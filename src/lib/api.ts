@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import { accessToken } from './supabase';
+import { recordDiagnostic } from './diagnostics';
 
 export class ApiError extends Error {
   status: number;
@@ -26,7 +27,10 @@ export interface ApiOptions {
 
 export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise<T> {
   const token = await accessToken();
-  if (!token) throw new ApiError(401, 'EI401', 'Please sign in.');
+  if (!token) {
+    void recordDiagnostic('warning', 'api', 'AUTH_REQUIRED', 'A signed-in session is required to contact the API.');
+    throw new ApiError(401, 'EI401', 'Please sign in.');
+  }
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
@@ -40,6 +44,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
       signal: opts.signal ?? AbortSignal.timeout(30000),
     });
   } catch {
+    void recordDiagnostic('warning', 'api', 'API_NETWORK_ERROR', `The ${opts.method ?? 'GET'} API request could not reach the server.`);
     throw new ApiError(0, 'NETWORK', 'No connection. Your change is saved on this phone and will upload later.');
   }
   const text = await res.text();
@@ -47,6 +52,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
   try { json = text ? JSON.parse(text) : null; } catch { json = text; }
   if (!res.ok) {
     const err = json?.error ?? {};
+    void recordDiagnostic('error', 'api', err.code ?? 'HTTP_ERROR', `The ${opts.method ?? 'GET'} API request failed with status ${res.status}.`);
     throw new ApiError(res.status, err.code ?? String(res.status), err.message ?? `Request failed (${res.status}).`, err.details);
   }
   return json as T;
@@ -57,6 +63,9 @@ export async function apiText(path: string): Promise<string> {
   const token = await accessToken();
   if (!token) throw new ApiError(401, 'EI401', 'Please sign in.');
   const res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new ApiError(res.status, String(res.status), `Request failed (${res.status}).`);
+  if (!res.ok) {
+    void recordDiagnostic('error', 'api', 'HTTP_ERROR', `The report request failed with status ${res.status}.`);
+    throw new ApiError(res.status, String(res.status), `Request failed (${res.status}).`);
+  }
   return res.text();
 }

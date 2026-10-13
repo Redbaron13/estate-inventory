@@ -67,8 +67,42 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Pages preflight diagnostics
+        env:
+          PAGES_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL || vars.VITE_SUPABASE_URL || '' }}
+          PAGES_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PROD_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || '' }}
+          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+        run: |
+          set -euo pipefail
+          echo "::group::GitHub Pages build context"
+          echo "Ref: ${GITHUB_REF_NAME}"
+          echo "Commit: ${GITHUB_SHA}"
+          echo "Runner Node: $(node --version)"
+          echo "Hosted environment file present: $([ -f .env.hosted ] && echo yes || echo no)"
+          echo "::endgroup::"
+
+          if [ ! -f .env.hosted ]; then
+            echo "::error::Missing .env.hosted and Pages client configuration cannot be resolved."
+            exit 1
+          fi
+          hosted_value() { sed -n "s/^$1=//p" .env.hosted | head -n 1; }
+          supabase_url="${PAGES_SUPABASE_URL:-$(hosted_value VITE_SUPABASE_URL)}"
+          publishable_key="${PAGES_SUPABASE_ANON_KEY:-$(hosted_value VITE_SUPABASE_ANON_KEY)}"
+          api_url="${PAGES_API_URL:-$(hosted_value VITE_API_URL)}"
+          if [ -z "$api_url" ] && [ -n "$supabase_url" ]; then
+            api_url="${supabase_url%/}/functions/v1/api/v1"
+          fi
+          echo "Supabase URL configured: $([ -n "$supabase_url" ] && echo yes || echo no)"
+          echo "Publishable client key configured: $([ -n "$publishable_key" ] && echo yes || echo no)"
+          echo "API endpoint configured: $([ -n "$api_url" ] && echo yes || echo no)"
+          if [[ ! "$supabase_url" =~ ^https:// ]] || [[ ! "$api_url" =~ ^https:// ]] || [ -z "$publishable_key" ]; then
+            echo "::error::Pages configuration is incomplete. Set the public Supabase URL, publishable key, and API endpoint in .env.hosted or repository variables."
+            exit 1
+          fi
       - name: Build for GitHub Pages
         run: |
+          set -Eeuo pipefail
+          trap 'status=$?; echo "::error::GitHub Pages build failed (exit ${status}). Review TypeScript and Vite output above."; exit "$status"' ERR
           npx tsc -b
           [ -n "${PAGES_SUPABASE_URL}" ] && export VITE_SUPABASE_URL="${PAGES_SUPABASE_URL}"
           [ -n "${PAGES_SUPABASE_ANON_KEY}" ] && export VITE_SUPABASE_ANON_KEY="${PAGES_SUPABASE_ANON_KEY}"
@@ -78,6 +112,14 @@ jobs:
           cp dist-pages/index.html dist-pages/404.html
           touch dist-pages/.nojekyll
           rm -f dist-pages/_headers
+          for artifact in index.html 404.html manifest.webmanifest sw.js; do
+            if [ ! -s "dist-pages/${artifact}" ]; then
+              echo "::error::Required Pages artifact is missing or empty: ${artifact}"
+              exit 1
+            fi
+          done
+          echo "Pages artifact size: $(du -sh dist-pages | cut -f1)"
+          echo "Verified: index.html, 404.html, manifest.webmanifest, sw.js"
         env:
           PAGES_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL || vars.VITE_SUPABASE_URL || '' }}
           PAGES_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PROD_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || '' }}
@@ -91,6 +133,41 @@ jobs:
           publish_branch: gh-pages
           force_orphan: true
           commit_message: Publish app build
+      - name: Verify published app and API
+        env:
+          PAGES_URL: https://redbaron13.github.io/estate-inventory/
+          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          health="$(mktemp)"
+          trap 'rm -f "$body" "$health"' EXIT
+          status=000
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' "$PAGES_URL" || true)"
+            if [ "$status" = 200 ]; then break; fi
+            echo "Pages smoke check attempt ${attempt}/12 returned HTTP ${status}."
+            sleep 5
+          done
+          if [ "$status" != 200 ] || ! grep -q 'id="root"' "$body"; then
+            echo "::error::Published Pages site did not return the expected app shell (HTTP ${status})."
+            exit 1
+          fi
+          api_url="${PAGES_API_URL:-$(sed -n 's/^VITE_API_URL=//p' .env.hosted | head -n 1)}"
+          if [ -z "$api_url" ]; then
+            supabase_url="$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted | head -n 1)"
+            api_url="${supabase_url%/}/functions/v1/api/v1"
+          fi
+          health_status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o "$health" -w '%{http_code}' "${api_url%/}/health" || true)"
+          if [ "$health_status" != 200 ] || ! node -e 'const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(v.ok !== true) process.exit(1)' "$health"; then
+            echo "::error::Configured API health check failed (HTTP ${health_status}). Verify the API URL, deployment, and hosted credentials."
+            exit 1
+          fi
+          echo "### GitHub Pages deployment verification" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App shell: HTTP ${status}, root element found" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API health: HTTP ${health_status}, healthy response" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${PAGES_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: ci
