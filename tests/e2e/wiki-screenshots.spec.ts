@@ -17,6 +17,22 @@ async function snap(page: Page, filename: string) {
 
 test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => {
   test.setTimeout(90_000);
+  const pageErrors: string[] = [];
+  const familyScriptRequests: string[] = [];
+  let captureFamilyScripts = false;
+  page.on('pageerror', (error) => pageErrors.push(error.name));
+  page.on('response', (response) => {
+    if (!captureFamilyScripts || response.request().resourceType() !== 'script') return;
+    const url = new URL(response.url());
+    if (url.origin === new URL(page.url()).origin) familyScriptRequests.push(`${response.status()} ${url.pathname}`);
+  });
+  page.on('requestfailed', (request) => {
+    if (!captureFamilyScripts || request.resourceType() !== 'script') return;
+    const url = new URL(request.url());
+    if (url.origin === new URL(page.url()).origin) {
+      familyScriptRequests.push(`failed ${url.pathname} ${request.failure()?.errorText ?? ''}`);
+    }
+  });
 
   // 1. Sign in screen
   await page.goto('/sign-in');
@@ -133,7 +149,25 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => 
   await snap(page, '19-backup-vault');
 
   // 20. Family & Settings
+  captureFamilyScripts = true;
   await page.goto(`${base}/family`);
-  await expect(page.getByRole('heading', { name: 'Family and settings' })).toBeVisible();
+  const familyHeading = page.getByRole('heading', { name: 'Family and settings' });
+  if (!(await familyHeading.isVisible().catch(() => false))) {
+    const route = new URL(page.url()).pathname.replace(/\/e\/[^/]+/, '/e/:estateId');
+    const details = {
+      route,
+      pageHeadingCount: await page.locator('h1').count(),
+      crashBoundaryVisible: await page.getByRole('heading', { name: 'This screen could not open' }).isVisible().catch(() => false),
+      signInFormVisible: await page.getByLabel('Email').isVisible().catch(() => false),
+      openingStatusVisible: await page.getByText('Opening', { exact: true }).isVisible().catch(() => false),
+      mainChildCount: await page.locator('main > *').count(),
+      mainTextLength: await page.locator('main').innerText().then((text) => text.length).catch(() => -1),
+      appRootChildren: await page.locator('#root').evaluate((root) => root.childElementCount),
+      pageErrors: pageErrors.slice(-5),
+      familyScriptRequests: familyScriptRequests.slice(-10),
+    };
+    console.log(`[e2e:family-route] ${JSON.stringify(details)}`);
+  }
+  await expect(familyHeading).toBeVisible();
   await snap(page, '20-family-settings');
 });

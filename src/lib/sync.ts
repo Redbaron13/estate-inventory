@@ -15,6 +15,7 @@ import { db, deviceId, getMeta, setMeta, SYNC_TABLES, type MyEstate } from './db
 import { flushOutbox, onEnqueue } from './outbox';
 import { supabase } from './supabase';
 import { convertDrafts, availableNumbers } from './actions';
+import { recordDiagnostic } from './diagnostics';
 
 export interface SyncState {
   online: boolean;
@@ -130,6 +131,7 @@ async function checkHistory(estateId: string) {
       problem: result.problem,
       witnessed: last ?? null,
     });
+    void recordDiagnostic('error', 'sync', 'LEDGER_MISMATCH', 'The shared history does not match this phone’s last verified record.');
     return;
   }
   await db.witnesses.put({ estate_id: estateId, seq: result.head.seq, hash: result.head.hash, seen_at: new Date().toISOString() });
@@ -172,7 +174,11 @@ async function watchEstates(ids: string[]) {
     const ch = supabase
       .channel(`estate:${id}`, { config: { private: true } })
       .on('broadcast', { event: 'changed' }, () => requestSync('realtime'))
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          void recordDiagnostic('warning', 'sync', 'REALTIME_UNAVAILABLE', 'Live updates are unavailable; periodic sync will continue.');
+        }
+      });
     channels.set(id, ch);
   }
 }
@@ -223,19 +229,26 @@ export async function syncNow(): Promise<void> {
       const estates = await refreshMyEstates();
       for (const estate of estates) {
         await pullEstate(estate.id);
-        await ensureNumbers(estate).catch(() => undefined);
-        await convertDrafts(estate.id).catch(() => undefined);
+        await ensureNumbers(estate).catch(() => {
+          void recordDiagnostic('warning', 'sync', 'NUMBER_RESERVATION_FAILED', 'New item numbers could not be reserved; offline captures may stay as drafts.');
+        });
+        await convertDrafts(estate.id).catch(() => {
+          void recordDiagnostic('warning', 'sync', 'DRAFT_CONVERSION_FAILED', 'Some offline item drafts could not be numbered.');
+        });
       }
       // Drafts converted to items need pushing too.
       await flushOutbox();
       setState({ lastSyncAt: new Date().toISOString(), needsSignIn: false });
       void watchEstates(estates.map((e) => e.id));
       for (const estate of estates) {
-        await checkHistory(estate.id).catch(() => undefined);
+        await checkHistory(estate.id).catch(() => {
+          void recordDiagnostic('warning', 'sync', 'LEDGER_CHECK_FAILED', 'The shared history could not be checked.');
+        });
         void prefetchThumbnails(estate.id).catch(() => undefined);
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Sync failed.';
+      void recordDiagnostic('error', 'sync', e instanceof ApiError ? e.code : 'SYNC_FAILED', 'Sync could not complete. Check connection, sign-in, and service availability.');
       setState({ lastError: msg, needsSignIn: e instanceof ApiError && e.status === 401 });
     } finally {
       setState({ syncing: false });

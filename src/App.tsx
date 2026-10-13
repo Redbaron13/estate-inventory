@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell';
 import { Spinner } from './components/ui';
 import { useMyEstates, useSession } from './lib/hooks';
 import { requestPersistentStorage, getMeta } from './lib/db';
+import { recordDiagnostic } from './lib/diagnostics';
 import { refreshMyEstates, startSync } from './lib/sync';
 import { preloadDetector } from './lib/barcode';
 import Home from './pages/Home';
@@ -65,9 +66,21 @@ function EstateLayout() {
 export default function App() {
   useEffect(() => {
     startSync();
-    void requestPersistentStorage();
+    if (!window.isSecureContext) void recordDiagnostic('error', 'compatibility', 'INSECURE_CONTEXT', 'Secure browser storage and camera access may not work.');
+    if (!('indexedDB' in window)) void recordDiagnostic('error', 'compatibility', 'INDEXEDDB_UNAVAILABLE', 'This browser does not provide the local database required by the app.');
+    void requestPersistentStorage().then((granted) => {
+      if (!granted) void recordDiagnostic('warning', 'storage', 'PERSISTENT_STORAGE_NOT_GRANTED', 'The browser may clear saved app data when device storage is low.');
+    });
+    const onError = () => void recordDiagnostic('error', 'runtime', 'BROWSER_ERROR', 'A browser error interrupted an app action.');
+    const onRejection = () => void recordDiagnostic('error', 'runtime', 'UNHANDLED_REJECTION', 'An app action failed without a screen-level error message.');
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
     preloadDetector();
     void getMeta<{ large_text?: boolean } | null>('my_profile', null).then((p) => document.documentElement.classList.toggle('large-text', !!p?.large_text));
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
   }, []);
 
   return (

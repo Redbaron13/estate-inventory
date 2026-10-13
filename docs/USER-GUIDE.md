@@ -9,7 +9,7 @@ A short guide for everyone in the family. You can send this page to anyone you i
    - iPhone: in Safari, tap the Share button, then "Add to Home Screen". Open the app from the new icon.
    - Android: in Chrome, tap the menu, then "Install app".
    This matters: the app keeps your work safe on the phone when there's no signal, and iPhone only does that reliably for apps on the Home Screen.
-3. Sign in with your email. You'll get a 6-digit code; type it in. (You can set a password instead if email codes are slow.)
+3. Sign in with the password your administrator gave you. Email sign-in codes are not configured on the hosted app yet.
 4. If you weren't taken to the estate, choose Join and enter the invitation code from your message.
 
 ## Recording an item
@@ -42,6 +42,8 @@ Everything works without a connection: adding items, photos, scanning, moving th
 - **5 to upload** means you're online and they're on their way.
 
 Open the app somewhere with signal now and then so it can upload. **Upload queue** (under More) shows exactly what's still on your phone. Don't delete the app while anything is waiting.
+
+If an upload or screen fails, open **More > Upload queue > Technical details for troubleshooting**. Copy those details and send them to the estate administrator. They include the app version, connection state and recent error codes, not passwords or sign-in tokens.
 
 ## Boxes, rooms and staging areas
 

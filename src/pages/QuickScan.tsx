@@ -6,7 +6,7 @@ import { useFileSaver } from '../components/FileSaver';
 import { Icon } from '../components/Icon';
 import { CategoryPicker, LocationPicker } from '../components/pickers';
 import { Scanner } from '../components/Scanner';
-import { CodeTag, ErrorText, Field, Notice, PageHeader, Spinner } from '../components/ui';
+import { ActionDialog, CodeTag, ErrorText, Field, Notice, PageHeader, Spinner } from '../components/ui';
 import { captureItem, online, recordCustody, type CapturePhoto } from '../lib/actions';
 import type { Detected } from '../lib/barcode';
 import { db, getMeta, setMeta } from '../lib/db';
@@ -81,6 +81,7 @@ export default function QuickScan() {
   const [pending, setPending] = useState<{ value: string; format: string; match: Item } | null>(null);
   const [results, setResults] = useState<SaveResult[] | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const rowPhotoRef = useRef<HTMLInputElement>(null);
@@ -357,8 +358,18 @@ export default function QuickScan() {
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 id="list-h">In this batch ({batch.rows.length})</h2>
           {batch.rows.length > 0 && (
-            <button type="button" className="btn btn-quiet min-h-10" onClick={() => { if (window.confirm('Clear the whole list? Items in it have not been saved.')) set({ rows: [] }); }}>Clear</button>
+            <button type="button" className="btn btn-quiet min-h-10" onClick={() => setConfirmClear(true)}>Clear</button>
           )}
+          <ActionDialog
+            open={confirmClear}
+            onClose={() => setConfirmClear(false)}
+            title="Clear this batch?"
+            confirmLabel="Clear list"
+            danger
+            onConfirm={() => set({ rows: [] })}
+          >
+            Items in this list have not been saved.
+          </ActionDialog>
         </div>
         {batch.rows.length === 0 ? (
           <p className="mb-6 text-ink-soft">Nothing yet. Scan, type or add photos above; each one appears here.</p>

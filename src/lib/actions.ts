@@ -293,9 +293,10 @@ export async function addPhotos(item: Item, photos: CapturePhoto[]) {
 
 export async function redactMedia(media: Media, reason: string) {
   const me = await requireUser();
+  const id = crypto.randomUUID();
   await db.transaction('rw', db.redactions, db.outbox, async () => {
-    await db.redactions.put({ id: crypto.randomUUID(), estate_id: media.estate_id, media_id: media.id, reason, redacted_by: me, created_at: now() });
-    await db.outbox.add(newOp({ estate_id: media.estate_id, kind: 'api', method: 'POST', path: `/estates/${media.estate_id}/media/${media.id}/redact`, body: { reason }, entity_id: media.item_id, label: 'Hide a photo' }));
+    await db.redactions.put({ id, estate_id: media.estate_id, media_id: media.id, reason, redacted_by: me, created_at: now() });
+    await db.outbox.add(newOp({ id, estate_id: media.estate_id, kind: 'api', method: 'POST', path: `/estates/${media.estate_id}/media/${media.id}/redact`, body: { reason }, entity_id: media.item_id, label: 'Hide a photo' }));
   });
   nudge();
 }
@@ -443,10 +444,11 @@ export async function createProposal(item: Item, p: { action: ProposalAction; re
 
 export async function decide(proposal: Proposal, decision: Decision, comment?: string | null) {
   const me = await requireUser();
+  const id = crypto.randomUUID();
   await db.transaction('rw', db.proposal_decisions, db.outbox, async () => {
-    await db.proposal_decisions.put({ id: crypto.randomUUID(), estate_id: proposal.estate_id, proposal_id: proposal.id, user_id: me, decision, comment: comment ?? null, created_at: now() });
+    await db.proposal_decisions.put({ id, estate_id: proposal.estate_id, proposal_id: proposal.id, user_id: me, decision, comment: comment ?? null, created_at: now() });
     await db.outbox.add(newOp({
-      estate_id: proposal.estate_id, kind: 'api', method: 'PUT', path: `/estates/${proposal.estate_id}/proposals/${proposal.id}/decision`,
+      id, estate_id: proposal.estate_id, kind: 'api', method: 'PUT', path: `/estates/${proposal.estate_id}/proposals/${proposal.id}/decision`,
       body: { decision, comment: comment ?? null }, entity_id: proposal.item_id, label: `Your ${decision.toLowerCase()} on a decision`,
     }));
   });
@@ -493,6 +495,7 @@ export async function reviewDuplicate(item: Item, other: Item, verdict: Duplicat
       estate_id: item.estate_id, kind: 'api', method: 'POST', path: `/estates/${item.estate_id}/duplicates/review`,
       body: { id, item_id: item.id, other_item_id: other.id, verdict, reasons, note: note ?? null }, entity_id: item.id,
       label: verdict === 'SAME_ITEM' ? `Merge #${item.inventory_number} into #${other.inventory_number}` : `Duplicate check on #${item.inventory_number}`,
+      rollback: verdict === 'SAME_ITEM' ? { item: { status: item.status, merged_into_id: item.merged_into_id } } : undefined,
     }));
   });
   nudge();

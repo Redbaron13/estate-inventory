@@ -5,7 +5,7 @@ import {
 } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
 import { LocationPicker } from '../components/pickers';
-import { Dialog, ErrorText, Field, Notice, PageHeader, ToneChip } from '../components/ui';
+import { ActionDialog, Dialog, ErrorText, Field, Notice, PageHeader, ToneChip } from '../components/ui';
 import { online } from '../lib/actions';
 import { db, setMeta } from '../lib/db';
 import { useEstateData, useEstateId, useMe, useMeta, useMyMembership, useOnline } from '../lib/hooks';
@@ -23,12 +23,19 @@ function Profile() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => { setName(profile?.display_name ?? ''); setPhone(profile?.phone ?? ''); }, [profile?.display_name, profile?.phone]);
   async function save(patch: Record<string, unknown>) {
-    const updated = await online.updateProfile(patch);
-    await setMeta('my_profile', updated);
-    document.documentElement.classList.toggle('large-text', !!updated.large_text);
-    setMsg('Saved.');
+    setError(null);
+    setMsg(null);
+    try {
+      const updated = await online.updateProfile(patch);
+      await setMeta('my_profile', updated);
+      document.documentElement.classList.toggle('large-text', !!updated.large_text);
+      setMsg('Saved.');
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
   return (
     <section className="mb-8" aria-labelledby="me-h">
@@ -38,6 +45,7 @@ function Profile() {
         <Field label="Phone (optional)" htmlFor="pf-phone"><input id="pf-phone" className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
         <button className="btn btn-secondary mb-4">Save</button>
       </form>
+      <ErrorText error={error} />
       <label className="mb-3 flex items-center gap-3"><input type="checkbox" className="h-6 w-6" checked={!!profile?.large_text} onChange={(e) => void save({ large_text: e.target.checked })} /><b>Larger text</b></label>
       <label className="flex items-center gap-3"><input type="checkbox" className="h-6 w-6" checked={!!profile?.simplified_mode} onChange={(e) => void save({ simplified_mode: e.target.checked })} /><b>Simplified mode</b> <span className="text-ink-soft">(fewer options on screen)</span></label>
       {msg && <p className="mt-2 text-ink-soft" role="status">{msg}</p>}
@@ -83,6 +91,7 @@ function Members({ estateId, manager }: { estateId: string; manager: boolean }) 
   const data = useEstateData(estateId)!;
   const me = useMe();
   const [editing, setEditing] = useState<Member | null>(null);
+  const [removing, setRemoving] = useState<Member | null>(null);
   const [draft, setDraft] = useState<Partial<Member>>({});
   const [error, setError] = useState<string | null>(null);
   async function save() {
@@ -94,10 +103,10 @@ function Members({ estateId, manager }: { estateId: string; manager: boolean }) 
       setEditing(null);
     } catch (e) { setError((e as Error).message); }
   }
-  async function remove(m: Member) {
-    const reason = window.prompt(`Why is ${memberName(m.user_id, data)} being removed? Their history stays.`);
-    if (!reason) return;
-    try { await online.removeMember(estateId, m.user_id, reason); await syncNow(); } catch (e) { window.alert((e as Error).message); }
+  async function remove(reason: string) {
+    if (!removing) return;
+    await online.removeMember(estateId, removing.user_id, reason);
+    await syncNow();
   }
   return (
     <section className="mb-8" aria-labelledby="mem-h">
@@ -142,10 +151,20 @@ function Members({ estateId, manager }: { estateId: string; manager: boolean }) 
             )}
             <ErrorText error={error} />
             <button type="button" className="btn btn-primary btn-block mb-3" onClick={() => void save()}>Save</button>
-            {manager && editing.user_id !== me && <button type="button" className="btn btn-quiet btn-block" onClick={() => { void remove(editing); setEditing(null); }}>Remove from this estate</button>}
+            {manager && editing.user_id !== me && <button type="button" className="btn btn-quiet btn-block" onClick={() => { setRemoving(editing); setEditing(null); }}>Remove from this estate</button>}
           </div>
         )}
       </Dialog>
+      <ActionDialog
+        open={!!removing}
+        onClose={() => setRemoving(null)}
+        title={removing ? `Remove ${memberName(removing.user_id, data)}?` : 'Remove family member?'}
+        confirmLabel="Remove member"
+        inputLabel="Reason"
+        inputHint="Their history stays."
+        danger
+        onConfirm={remove}
+      />
     </section>
   );
 }
@@ -280,11 +299,18 @@ export default function Family() {
   const member = useMyMembership(data, me);
   const isOnline = useOnline();
   const navigate = useNavigate();
+  const [signOutPending, setSignOutPending] = useState<number | null>(null);
   if (!data?.estate) return null;
   const manager = member?.role === 'ADMINISTRATOR' || member?.role === 'EXECUTOR';
   async function signOut() {
     const pending = await db.outbox.count();
-    if (pending && !window.confirm(`${pending} change(s) have not uploaded yet. They stay on this phone and upload when you sign in again. Sign out?`)) return;
+    if (pending) {
+      setSignOutPending(pending);
+      return;
+    }
+    await finishSignOut();
+  }
+  async function finishSignOut() {
     await supabase.auth.signOut();
     navigate('/sign-in');
   }
@@ -298,6 +324,15 @@ export default function Family() {
       {manager && <Invites estateId={estateId} />}
       {manager && <Settings estateId={estateId} />}
       <button type="button" className="btn btn-quiet" onClick={() => void signOut()}><Icon name="lock" size={18} /> Sign out</button>
+      <ActionDialog
+        open={signOutPending !== null}
+        onClose={() => setSignOutPending(null)}
+        title="Sign out with changes waiting?"
+        confirmLabel="Sign out"
+        onConfirm={finishSignOut}
+      >
+        {signOutPending} change{signOutPending === 1 ? '' : 's'} have not uploaded yet. They stay on this phone and upload when you sign in again.
+      </ActionDialog>
     </div>
   );
 }

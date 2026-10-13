@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   STATUS_LABELS, STATUS_TONE, type ItemStatus, type Media, type Tone,
@@ -129,6 +129,7 @@ export function Thumb({ media, size = 64, full = false, className = '' }: { medi
 
 export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -140,11 +141,12 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
       ref={ref}
       onClose={onClose}
       onCancel={onClose}
+      aria-labelledby={titleId}
       className="m-auto w-[min(34rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink backdrop:bg-black/40"
     >
       <div className="max-h-[85dvh] overflow-y-auto p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button type="button" className="btn btn-quiet -mr-2 -mt-2 min-h-11" onClick={onClose} aria-label="Close">
             <Icon name="x" />
           </button>
@@ -152,6 +154,61 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
         {open && children}
       </div>
     </dialog>
+  );
+}
+
+export function ActionDialog({
+  open, onClose, title, children, confirmLabel, inputLabel, inputHint, onConfirm, danger = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children?: ReactNode;
+  confirmLabel: string;
+  inputLabel?: string;
+  inputHint?: string;
+  onConfirm: (value: string) => void | Promise<void>;
+  danger?: boolean;
+}) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputId = useId();
+  useEffect(() => {
+    if (open) {
+      setValue('');
+      setError(null);
+      setBusy(false);
+    }
+  }, [open]);
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm(value.trim());
+      onClose();
+    } catch (e) {
+      setError((e as Error).message || 'That could not be completed. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={open} onClose={onClose} title={title}>
+      {children && <div className="mb-4">{children}</div>}
+      {inputLabel && (
+        <Field label={inputLabel} htmlFor={inputId} hint={inputHint}>
+          <textarea id={inputId} className="input" value={value} onChange={(e) => setValue(e.target.value)} required />
+        </Field>
+      )}
+      <ErrorText error={error} />
+      <div className="mt-4 flex gap-2">
+        <button type="button" className="btn btn-quiet flex-1" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" className={`btn ${danger ? 'btn-danger' : 'btn-primary'} flex-1`} onClick={() => void confirm()} disabled={busy || (!!inputLabel && !value.trim())}>
+          {busy ? 'Working…' : confirmLabel}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
