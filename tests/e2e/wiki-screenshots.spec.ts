@@ -17,6 +17,8 @@ async function snap(page: Page, filename: string) {
 
 test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => {
   test.setTimeout(90_000);
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.name));
 
   // 1. Sign in screen
   await page.goto('/sign-in');
@@ -134,6 +136,19 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => 
 
   // 20. Family & Settings
   await page.goto(`${base}/family`);
-  await expect(page.getByRole('heading', { name: 'Family and settings' })).toBeVisible();
+  const familyHeading = page.getByRole('heading', { name: 'Family and settings' });
+  if (!(await familyHeading.isVisible().catch(() => false))) {
+    const route = new URL(page.url()).pathname.replace(/\/e\/[^/]+/, '/e/:estateId');
+    const details = {
+      route,
+      pageHeadingCount: await page.locator('h1').count(),
+      crashBoundaryVisible: await page.getByRole('heading', { name: 'This screen could not open' }).isVisible().catch(() => false),
+      signInFormVisible: await page.getByLabel('Email').isVisible().catch(() => false),
+      appRootChildren: await page.locator('#root').evaluate((root) => root.childElementCount),
+      pageErrors: pageErrors.slice(-5),
+    };
+    console.log(`[e2e:family-route] ${JSON.stringify(details)}`);
+  }
+  await expect(familyHeading).toBeVisible();
   await snap(page, '20-family-settings');
 });
