@@ -1,6 +1,6 @@
 # Release pipeline.
 #
-#   push to main  ->  full CI  ->  staging   (only if a staging project is configured)
+#   push to mainbranch ->  full CI  ->  staging   (only if a staging project is configured)
 #   manual run    ->  full CI  ->  staging or production
 #
 # Production deploys are always manual: Actions > Deploy > Run workflow,
@@ -15,7 +15,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, mainbranch]
+    branches: [mainbranch]
   workflow_dispatch:
     inputs:
       target:
@@ -44,7 +44,7 @@ jobs:
 
   # The app on GitHub Pages (https://redbaron13.github.io/estate-inventory/),
   # pointed at the hosted Supabase project (.env.hosted). Runs on every push
-  # to main or mainbranch once all tests pass.
+  # to mainbranch once all tests pass.
   pages:
     needs: ci
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.confirm == 'production')
@@ -245,8 +245,8 @@ jobs:
       - name: Publish to Cloudflare Pages
         if: steps.gate.outputs.skip != 'true'
         run: |
-          BRANCH=$([ "$TARGET" = "production" ] && echo "${GITHUB_REF_NAME:-main}" || echo staging)
-          npx wrangler pages project create "$PAGES_PROJECT" --production-branch main 2>/dev/null || true
+          BRANCH=$([ "$TARGET" = "production" ] && echo "${GITHUB_REF_NAME:-mainbranch}" || echo staging)
+          npx wrangler pages project create "$PAGES_PROJECT" --production-branch mainbranch 2>/dev/null || true
           npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "$BRANCH" --commit-hash "$GITHUB_SHA" --commit-dirty=true
 
       - name: Smoke test

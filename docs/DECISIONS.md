@@ -32,3 +32,5 @@ Why the app is built the way it is. Newest decisions go at the bottom; a decisio
 | 26 | Marking photos are stored as media kind MARK next to a Markings text field | An inscription is evidence; a photo preserves what the text can't | Text only |
 | 27 | Files are handed over with a share-sheet-first saver that asks for one more tap when iOS refuses | iOS opens the share sheet only right after a tap; a download fallback is ignored by installed web apps | Plain downloads |
 | 28 | Host the app on GitHub Pages for now (supersedes the hosting part of 8) | Works with what's already connected; no extra account or token. Cost: no response headers, so the CSP isn't enforced there | Cloudflare Pages (needs an API token), Vercel (connector lacks access to the team) |
+| 29 | Default branch is `mainbranch`; CI and deploy trigger on it | Owner's directive; one branch name everywhere | Keeping `main` alongside it |
+| 30 | Estate code `EST-YYYY-HEX8` added as a nullable column with a unique index; backfilled once | Human-readable estate reference; no SSN data is stored, so the code hashes the estate id | Storing an SSN hash as the directive's DDL implies |

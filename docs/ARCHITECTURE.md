@@ -86,7 +86,7 @@ Candidates are found by barcode, serial number, identical photo hash, and name s
 | Local | `npx supabase start` (Docker) | `npm run dev` | demo seed |
 | CI | fresh local stack per run | built and served by `vite preview` | demo seed |
 | Staging (optional) | second free Supabase project | Cloudflare Pages branch `staging` (once its token exists) | test data |
-| Production | Supabase project `dszldulsyoovtnsaquay` | GitHub Pages, `gh-pages` branch, built from `main` after CI passes | real data |
+| Production | Supabase project `dszldulsyoovtnsaquay` | GitHub Pages, `gh-pages` branch, built from `mainbranch` after CI passes | real data |
 
 ## Security posture in one list
 

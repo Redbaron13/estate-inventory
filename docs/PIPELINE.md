@@ -6,7 +6,7 @@
  branch + commit  ──push──▶ pull request ──▶ CI (all tests)
                                  │ merge
                                  ▼
-                           main ──▶ CI ──▶ staging (if configured)
+                           mainbranch ──▶ CI ──▶ staging (if configured)
                                  │
               Actions > Deploy > production (type "production")
                                  ▼
@@ -15,7 +15,7 @@
 
 ## Everyday loop
 
-1. Start from an up-to-date main: `git checkout main && git pull`.
+1. Start from an up-to-date mainbranch: `git checkout mainbranch && git pull`.
 2. Make a branch: `git checkout -b short-description`.
 3. Run it locally: `npm run db:start` (once), `npm run dev`, sign in as `alex@example.com` / `estate-demo-pass`.
 4. Before pushing: `npm run check` and, if you touched the database, `npm run db:test`.
@@ -47,7 +47,7 @@ The job reruns CI, then in this order:
 
 Phones show "A new version is ready" the next time the app is open. Nothing in progress is interrupted, and changes waiting in the outbox upload with the new version.
 
-Pushes to main also deploy to **staging** automatically once a staging project is configured (`STAGING_*` secrets). Without one, that step is skipped.
+Pushes to mainbranch also deploy to **staging** automatically once a staging project is configured (`STAGING_*` secrets). Without one, that step is skipped.
 
 ## Rules for database changes
 
