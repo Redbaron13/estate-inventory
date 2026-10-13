@@ -17,6 +17,12 @@ async function signIn(page: Page) {
 
 const estateBase = (page: Page) => page.url().replace(/\/e\/([^/]+).*$/, '/e/$1');
 
+test('Family settings opens after its estate data loads', async ({ page }) => {
+  await signIn(page);
+  await page.goto(`${estateBase(page)}/family`);
+  await expect(page.getByRole('heading', { name: 'Family and settings' })).toBeVisible();
+});
+
 test('an item saved as up for grabs opens a round (local database transaction regression)', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
