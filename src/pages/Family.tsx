@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ROLE_LABELS, memberName, type ApprovalRule, type ClaimMode, type Member, type MemberRole,
+  ROLE_LABELS, memberName, type ApprovalRule, type ClaimMode, type EstateData, type Member, type MemberRole,
 } from '../../supabase/functions/_shared/domain.ts';
 import { Icon } from '../components/Icon';
 import { LocationPicker } from '../components/pickers';
@@ -79,8 +79,7 @@ function Password() {
   );
 }
 
-function Members({ estateId, manager }: { estateId: string; manager: boolean }) {
-  const data = useEstateData(estateId)!;
+function Members({ data, estateId, manager }: { data: EstateData; estateId: string; manager: boolean }) {
   const me = useMe();
   const [editing, setEditing] = useState<Member | null>(null);
   const [draft, setDraft] = useState<Partial<Member>>({});
@@ -150,8 +149,7 @@ function Members({ estateId, manager }: { estateId: string; manager: boolean }) 
   );
 }
 
-function Invites({ estateId }: { estateId: string }) {
-  const data = useEstateData(estateId)!;
+function Invites({ data, estateId }: { data: EstateData; estateId: string }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('BENEFICIARY');
   const [code, setCode] = useState<string | null>(null);
@@ -208,8 +206,7 @@ function Invites({ estateId }: { estateId: string }) {
   );
 }
 
-function Settings({ estateId }: { estateId: string }) {
-  const data = useEstateData(estateId)!;
+function Settings({ data, estateId }: { data: EstateData; estateId: string }) {
   const e = data.estate!;
   const [f, setF] = useState({ ...e });
   const [msg, setMsg] = useState<string | null>(null);
@@ -294,9 +291,9 @@ export default function Family() {
       {!isOnline && <Notice tone="attention" icon="cloudOff">Changes on this page need a connection.</Notice>}
       <Profile />
       {isOnline && <Password />}
-      <Members estateId={estateId} manager={manager} />
-      {manager && <Invites estateId={estateId} />}
-      {manager && <Settings estateId={estateId} />}
+      <Members data={data} estateId={estateId} manager={manager} />
+      {manager && <Invites data={data} estateId={estateId} />}
+      {manager && <Settings data={data} estateId={estateId} />}
       <button type="button" className="btn btn-quiet" onClick={() => void signOut()}><Icon name="lock" size={18} /> Sign out</button>
     </div>
   );
