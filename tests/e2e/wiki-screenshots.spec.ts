@@ -144,6 +144,9 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => 
       pageHeadingCount: await page.locator('h1').count(),
       crashBoundaryVisible: await page.getByRole('heading', { name: 'This screen could not open' }).isVisible().catch(() => false),
       signInFormVisible: await page.getByLabel('Email').isVisible().catch(() => false),
+      openingStatusVisible: await page.getByText('Opening', { exact: true }).isVisible().catch(() => false),
+      mainChildCount: await page.locator('main > *').count(),
+      mainTextLength: await page.locator('main').innerText().then((text) => text.length).catch(() => -1),
       appRootChildren: await page.locator('#root').evaluate((root) => root.childElementCount),
       pageErrors: pageErrors.slice(-5),
     };
