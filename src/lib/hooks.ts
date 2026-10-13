@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { EstateData, Member } from '../../supabase/functions/_shared/domain.ts';
 import { db, getMeta, loadEstateData, type MyEstate } from './db';
+import { recordDiagnostic } from './diagnostics';
 import { supabase } from './supabase';
 import { getSyncState, subscribeSync } from './sync';
 
@@ -12,12 +13,26 @@ export function useSession(): { session: Session | null; loading: boolean } {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let alive = true;
-    supabase.auth.getSession().then(({ data }) => {
+    void supabase.auth.getSession().then(({ data, error }) => {
       if (!alive) return;
-      setSession(data.session);
+      if (error) {
+        setSession(null);
+        void recordDiagnostic('error', 'api', 'SESSION_READ_FAILED', 'The saved sign-in could not be checked. Sign in again.');
+      } else {
+        setSession(data.session);
+      }
+      setLoading(false);
+    }).catch(() => {
+      if (!alive) return;
+      setSession(null);
+      setLoading(false);
+      void recordDiagnostic('error', 'api', 'SESSION_READ_FAILED', 'The saved sign-in could not be checked. Sign in again.');
+    });
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!alive) return;
+      setSession(s);
       setLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => {
       alive = false;
       data.subscription.unsubscribe();
