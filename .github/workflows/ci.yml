@@ -1,10 +1,10 @@
-# Every pull request and every push to main runs the full test suite:
+# Every pull request and every push to mainbranch runs the full test suite:
 #   1. lint, types, unit tests, production build, API type check
 #   2. a real local Supabase stack: database tests (RLS, immutability,
 #      approvals, sealed claims, ledger) and phone-sized end-to-end tests,
 #      including recording an item offline and syncing it.
 # Nothing can be deployed unless this passes: deploy.yml calls it first on
-# every push to main, so it is not triggered separately for main (that would
+# every push to mainbranch, so it is not triggered separately for mainbranch (that would
 # run it twice and spend GitHub's free minutes twice as fast).
 name: CI
 

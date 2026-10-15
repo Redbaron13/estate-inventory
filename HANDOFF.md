@@ -20,7 +20,7 @@ A private, offline-first PWA for one family (the owner, Kevin Baron, and his sib
 | Backend | Supabase project `dszldulsyoovtnsaquay` (US East, Postgres 17), all 11 migrations applied; schema fingerprint matches the tested local database exactly (708 objects) |
 | API | Supabase Edge Function `api`, version 2, serving `/functions/v1/api/v1/*` |
 | Tests | 29 unit, 79 database (pgTAP), 6 end-to-end (Playwright, phone size); all green locally and in GitHub Actions |
-| Pipeline | PR: CI. Push to main: CI, then GitHub Pages publish (staging/production deploy steps skip until their secrets exist) |
+| Pipeline | PR: CI. Push to mainbranch: CI, then GitHub Pages publish (staging/production deploy steps skip until their secrets exist) |
 | Backups | Built and tested (dump, encrypt, R2 upload, restore drill proven locally) but **not running**: R2 not enabled and secrets not set. Jobs skip quietly; a nightly keep-alive runs |
 | Email sign-in codes | **Not working on hosted** (see Known issues). Password sign-in works |
 | Data in production | One estate, "Demo estate (sample data)" with fictional items, owner as administrator plus two demo members (blair.demo@example.com, casey.demo@example.com). The owner has started adding real test items there |
@@ -31,7 +31,7 @@ Credentials are **not** in this file or the repo (the repo is public). The owner
 
 | Thing | Location / identifier | Notes |
 | --- | --- | --- |
-| Code | github.com/Redbaron13/estate-inventory, branch `main` | **Public** repo. Commits must use the GitHub no-reply email `98280733+Redbaron13@users.noreply.github.com` (the account blocks pushes exposing the personal email) |
+| Code | github.com/Redbaron13/estate-inventory, branch `mainbranch` (default) | **Public** repo. Commits must use the GitHub no-reply email `98280733+Redbaron13@users.noreply.github.com` (the account blocks pushes exposing the personal email) |
 | Hosted app | GitHub Pages from `gh-pages` (force-pushed by `deploy.yml` job `pages`) | Base path `/estate-inventory/`; built with `VITE_BASE=/estate-inventory/ vite build --mode hosted` |
 | Supabase | Project ref `dszldulsyoovtnsaquay`, org created through the **Vercel Marketplace** integration | Billing/plan changes go through Vercel. Free plan: pauses after 7 days idle (keep-alive in `backup.yml`), no Supabase backups |
 | API deployment | Entry file deployed via Supabase MCP imports the real source from jsDelivr at a **pinned commit**: `https://cdn.jsdelivr.net/gh/Redbaron13/estate-inventory@9c3b7cb6644764d46a230317217f99934d4304e0/supabase/functions/api/index.ts` | API code unchanged since that commit. To update: push, then redeploy the one-line entry with the new SHA (pass `import_map_path: "deno.json"` or the deploy fails). Or set `SUPABASE_ACCESS_TOKEN` and use `deploy.yml` |
@@ -78,7 +78,7 @@ npm run build && npm run preview &   # then: npx playwright test
 deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts
 ```
 
-Release: push to `main`; CI must pass; the `pages` job republishes the app. Database changes: new migration file, test locally, then apply to hosted (CLI `supabase db push` with secrets, or the Supabase MCP `apply_migration`).
+Release: push to `mainbranch`; CI must pass; the `pages` job republishes the app. Database changes: new migration file, test locally, then apply to hosted (CLI `supabase db push` with secrets, or the Supabase MCP `apply_migration`).
 
 ### Agent-environment gotchas (cloud sandbox)
 
