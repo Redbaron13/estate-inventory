@@ -77,7 +77,9 @@ Set under GitHub > Settings > Secrets and variables > Actions. GitHub Free has n
 | `PROD_SUPABASE_DB_PASSWORD` | secret | deploy | Project settings > Database > Reset password |
 | `PROD_SUPABASE_URL` | secret | deploy, backup | `https://dszldulsyoovtnsaquay.supabase.co` |
 | `PROD_SUPABASE_ANON_KEY` | secret | deploy | Project settings > API keys (publishable key) |
-| `PROD_SITE_URL` | secret | deploy | the Pages address, e.g. `https://estate-inventory.pages.dev` |
+| `PROD_SITE_URL` | secret | deploy | the production Pages URL, including `/estate-inventory/`, e.g. `https://redbaron13.github.io/estate-inventory/` |
+| `RESEND_SMTP_PASSWORD` | secret | production deploy | Resend > SMTP > API key; requires a verified sender domain |
+| `AUTH_SENDER_EMAIL` | secret | production deploy | A sender address verified in Resend |
 | `PROD_SUPABASE_DB_URL` | secret | backup | Connect > Session pooler connection string (not "Direct": GitHub runners have no IPv6) |
 | `PROD_STORAGE_S3_ACCESS_KEY_ID`, `PROD_STORAGE_S3_SECRET_ACCESS_KEY` | secret | backup | Storage > S3 configuration > New access key |
 | `CLOUDFLARE_API_TOKEN` | secret | deploy | Cloudflare > My Profile > API Tokens, template "Edit Cloudflare Workers" or a custom token with Cloudflare Pages: Edit |

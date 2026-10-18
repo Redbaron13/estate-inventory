@@ -13,6 +13,7 @@ export default function SignIn() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'code' | 'password'>('code');
   const [step, setStep] = useState<'email' | 'verify'>('email');
+  const [recoveryStage, setRecoveryStage] = useState<'email' | 'verify' | 'password' | null>(null);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -36,9 +37,41 @@ export default function SignIn() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: recoveryStage === 'verify' ? 'recovery' : 'email',
+    });
     setBusy(false);
     if (error) setError('That code did not work. Check the newest email and try again.');
+    else if (recoveryStage === 'verify') {
+      setCode('');
+      setRecoveryStage('password');
+    } else navigate('/', { replace: true });
+  }
+
+  async function sendRecoveryCode(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+    setBusy(false);
+    if (error) setError(error.message.includes('rate') ? 'Too many codes requested. Wait a few minutes and try again.' : error.message);
+    else setRecoveryStage('verify');
+  }
+
+  async function setRecoveredPassword(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    if (password.length < 10) {
+      setBusy(false);
+      setError('Use at least 10 characters.');
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) setError(error.message);
     else navigate('/', { replace: true });
   }
 
@@ -117,7 +150,7 @@ export default function SignIn() {
           </button>
         </div>
 
-        {mode === 'code' && step === 'email' && (
+        {mode === 'code' && !recoveryStage && step === 'email' && (
           <form onSubmit={sendCode}>
             <Field label="Your email address" htmlFor="email" hint="We'll email you a 6-digit code. No password needed.">
               <input id="email" className="input" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -126,7 +159,7 @@ export default function SignIn() {
           </form>
         )}
 
-        {mode === 'code' && step === 'verify' && (
+        {mode === 'code' && !recoveryStage && step === 'verify' && (
           <form onSubmit={verify}>
             <p className="mb-4 text-sm text-ink-soft">We sent a 6-digit verification code to <b className="text-ink">{email}</b>.</p>
             <Field label="6-digit code" htmlFor="code">
@@ -137,7 +170,7 @@ export default function SignIn() {
           </form>
         )}
 
-        {mode === 'password' && (
+        {mode === 'password' && !recoveryStage && (
           <form onSubmit={withPassword}>
             {newAccount && (
               <Field label="Your name" htmlFor="name" hint="Shown to your family next to your choices.">
@@ -171,9 +204,49 @@ export default function SignIn() {
               </div>
             </Field>
             <button className="btn btn-primary btn-block mb-3" disabled={busy}>{newAccount ? 'Create account' : 'Sign in'}</button>
+            {!newAccount && (
+              <button
+                type="button"
+                className="btn btn-quiet btn-block mb-3 text-sm"
+                onClick={() => { setRecoveryStage('email'); setError(null); }}
+              >
+                Forgot your password?
+              </button>
+            )}
             <button type="button" className="btn btn-quiet btn-block text-sm" onClick={() => setNewAccount((v) => !v)}>
               {newAccount ? 'I already have an account' : 'Create an account with a password'}
             </button>
+          </form>
+        )}
+
+        {recoveryStage === 'email' && (
+          <form onSubmit={sendRecoveryCode}>
+            <p className="mb-4 text-sm text-ink-soft">We'll email you a 6-digit password reset code.</p>
+            <Field label="Your email address" htmlFor="recovery-email">
+              <input id="recovery-email" className="input" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            <button className="btn btn-primary btn-block mb-3" disabled={busy || !email}>Email me a reset code</button>
+            <button type="button" className="btn btn-quiet btn-block text-sm" onClick={() => setRecoveryStage(null)}>Back to sign in</button>
+          </form>
+        )}
+
+        {recoveryStage === 'verify' && (
+          <form onSubmit={verify}>
+            <p className="mb-4 text-sm text-ink-soft">We sent a 6-digit password reset code to <b className="text-ink">{email}</b>.</p>
+            <Field label="6-digit code" htmlFor="recovery-code">
+              <input id="recovery-code" className="input code text-center text-2xl tracking-[0.4em]" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
+            </Field>
+            <button className="btn btn-primary btn-block mb-3" disabled={busy || code.length !== 6}>Verify code</button>
+            <button type="button" className="btn btn-quiet btn-block text-sm" onClick={() => setRecoveryStage('email')}>Use a different email</button>
+          </form>
+        )}
+
+        {recoveryStage === 'password' && (
+          <form onSubmit={setRecoveredPassword}>
+            <Field label="New password" htmlFor="recovery-password" hint="At least 10 characters.">
+              <input id="recovery-password" className="input" type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <button className="btn btn-primary btn-block" disabled={busy}>Set new password</button>
           </form>
         )}
 
@@ -181,14 +254,14 @@ export default function SignIn() {
       </div>
 
       <div className="mt-4 flex flex-col items-center gap-2">
-        <button
+        {!recoveryStage && <button
           type="button"
           className="btn btn-quiet min-h-10 text-sm"
-          onClick={() => { setMode(mode === 'code' ? 'password' : 'code'); setError(null); }}
+          onClick={() => { setMode(mode === 'code' ? 'password' : 'code'); setStep('email'); setError(null); }}
         >
           <Icon name={mode === 'code' ? 'lock' : 'file'} size={16} />
           {mode === 'code' ? 'Use a password instead' : 'Use an email code instead'}
-        </button>
+        </button>}
         {APP_ENV !== 'production' && <p className="text-center text-[0.8rem] text-ink-soft">Environment: {APP_ENV}</p>}
       </div>
     </main>

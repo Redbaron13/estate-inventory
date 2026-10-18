@@ -229,7 +229,7 @@ enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+max_frequency = "60s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
@@ -255,10 +255,13 @@ content_path = "./supabase/templates/sign-in-code.html"
 subject = "Your Estate Inventory sign-in code"
 content_path = "./supabase/templates/sign-in-code.html"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+[auth.email.template.invite]
+subject = "Your Estate Inventory sign-in code"
+content_path = "./supabase/templates/sign-in-code.html"
+
+[auth.email.template.recovery]
+subject = "Your Estate Inventory password reset code"
+content_path = "./supabase/templates/sign-in-code.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
@@ -433,7 +436,7 @@ verify_jwt = false
 # ---------------------------------------------------------------------------
 # Hosted projects. `supabase config push --project-ref <ref>` applies the
 # settings above plus the overrides for the matching block below.
-# SITE_URL comes from the deploy workflow (the Cloudflare Pages address).
+# SITE_URL comes from the deploy workflow.
 # ---------------------------------------------------------------------------
 [remotes.production]
 project_id = "dszldulsyoovtnsaquay"
@@ -443,5 +446,14 @@ site_url = "env(SITE_URL)"
 additional_redirect_urls = ["env(SITE_URL)"]
 
 [remotes.production.auth.rate_limit]
-# The built-in sender allows 2 emails/hour. Raise this after adding custom SMTP (docs/RUNBOOK.md).
-email_sent = 2
+# Requires the verified custom SMTP sender below (docs/RUNBOOK.md).
+email_sent = 30
+
+[remotes.production.auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_SMTP_PASSWORD)"
+admin_email = "env(AUTH_SENDER_EMAIL)"
+sender_name = "Estate Inventory"

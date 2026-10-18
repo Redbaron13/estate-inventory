@@ -23,6 +23,52 @@ test('Family settings opens after its estate data loads', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Family and settings' })).toBeVisible();
 });
 
+test('password recovery uses an email code before setting a new password', async ({ page }) => {
+  const requests: { url: string; body: string }[] = [];
+  await page.route('**/auth/v1/recover', async (route) => {
+    requests.push({ url: route.request().url(), body: route.request().postData() ?? '' });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+  });
+  await page.route('**/auth/v1/verify', async (route) => {
+    requests.push({ url: route.request().url(), body: route.request().postData() ?? '' });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: 'recovery-access-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'recovery-refresh-token',
+        user: { id: 'recovery-user', aud: 'authenticated', role: 'authenticated', email: 'family@example.com' },
+      }),
+    });
+  });
+  await page.route('**/auth/v1/user', async (route) => {
+    requests.push({ url: route.request().url(), body: route.request().postData() ?? '' });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'recovery-user', aud: 'authenticated', role: 'authenticated', email: 'family@example.com' }),
+    });
+  });
+
+  await page.goto('/sign-in');
+  await page.getByRole('button', { name: 'Use a password instead' }).click();
+  await page.getByLabel('Email').fill('family@example.com');
+  await page.getByRole('button', { name: 'Forgot your password?' }).click();
+  await page.getByRole('button', { name: 'Email me a reset code' }).click();
+  await expect(page.getByText(/We sent a 6-digit password reset code/)).toBeVisible();
+  await page.getByLabel('6-digit code').fill('123456');
+  await page.getByRole('button', { name: 'Verify code' }).click();
+  await page.getByLabel('New password').fill('a-new-secure-password');
+  await page.getByRole('button', { name: 'Set new password' }).click();
+
+  await expect.poll(() => requests.length).toBe(3);
+  expect(JSON.parse(requests[0].body)).toMatchObject({ email: 'family@example.com' });
+  expect(JSON.parse(requests[1].body)).toMatchObject({ email: 'family@example.com', token: '123456', type: 'recovery' });
+  expect(JSON.parse(requests[2].body)).toMatchObject({ password: 'a-new-secure-password' });
+});
+
 test('an item saved as up for grabs opens a round (local database transaction regression)', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

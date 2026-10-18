@@ -182,6 +182,8 @@ jobs:
       VITE_SUPABASE_URL: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_URL || secrets.STAGING_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_ANON_KEY || secrets.STAGING_SUPABASE_ANON_KEY }}
       SITE_URL: ${{ inputs.target == 'production' && secrets.PROD_SITE_URL || secrets.STAGING_SITE_URL }}
+      RESEND_SMTP_PASSWORD: ${{ secrets.RESEND_SMTP_PASSWORD }}
+      AUTH_SENDER_EMAIL: ${{ secrets.AUTH_SENDER_EMAIL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'estate-inventory' }}
@@ -203,6 +205,11 @@ jobs:
           for v in SUPABASE_ACCESS_TOKEN DB_PASSWORD VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SITE_URL CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
             if [ -z "${!v}" ]; then echo "::error::Missing secret for $v ($TARGET). See docs/PIPELINE.md."; exit 1; fi
           done
+          if [ "$TARGET" = "production" ]; then
+            for v in RESEND_SMTP_PASSWORD AUTH_SENDER_EMAIL; do
+              if [ -z "${!v}" ]; then echo "::error::Missing secret for $v (production). See docs/PIPELINE.md."; exit 1; fi
+            done
+          fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - if: steps.gate.outputs.skip != 'true'
