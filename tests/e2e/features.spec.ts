@@ -26,6 +26,25 @@ test('keyboard navigation moves focus to the new screen', async ({ page }) => {
   await expect(page.locator('main')).toBeFocused();
 });
 
+test('decisions and troubleshooting can be reached and used with the keyboard', async ({ page }) => {
+  await signIn(page);
+  await page.getByRole('link', { name: 'Decisions', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Decisions', exact: true })).toBeVisible();
+  await expect(page.locator('main')).toBeFocused();
+
+  await page.getByRole('link', { name: 'More', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('link', { name: /Upload queue/ }).click();
+  await expect(page.getByRole('heading', { name: 'Upload queue', exact: true })).toBeVisible();
+  await expect(page.locator('main')).toBeFocused();
+  const troubleshooting = page.getByText('Technical details for troubleshooting');
+  await troubleshooting.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('details')).toHaveJSProperty('open', true);
+  await expect(page.getByText('App version', { exact: true })).toBeVisible();
+});
+
 test('batch clear dialog contains keyboard focus and returns it to its trigger', async ({ page }) => {
   await signIn(page);
   await page.goto(`${estateBase(page)}/scan`);
@@ -55,6 +74,7 @@ test('an item saved as up for grabs opens a round (local database transaction re
   await signIn(page);
   await page.getByRole('link', { name: /Add an item/ }).click();
   await page.getByRole('button', { name: /Enter description|Continue to details/ }).click();
+  await expect(page.getByLabel('Short description')).toBeFocused();
   const title = `Copper kettle ${Date.now().toString(36)}`;
   await page.getByLabel('Short description').fill(title);
   await page.getByRole('button', { name: 'Next' }).click();
@@ -62,9 +82,12 @@ test('an item saved as up for grabs opens a round (local database transaction re
   const next = page.getByRole('heading', { name: 'What should happen to it?' });
   await expect(dup.or(next)).toBeVisible();
   if (await dup.isVisible()) await page.getByRole('button', { name: /It's a different item/ }).click();
+  await expect(next).toBeFocused();
   await page.getByText('Up for grabs', { exact: true }).click();
   await page.getByRole('button', { name: 'Save item' }).click();
-  await expect(page.getByRole('heading', { name: /Saved\. Item \d{4,} is in the inventory\./ })).toBeVisible();
+  const saved = page.getByRole('heading', { name: /Saved\. Item \d{4,} is in the inventory\./ });
+  await expect(saved).toBeVisible();
+  await expect(saved).toBeFocused();
   await page.getByRole('link', { name: 'View this item' }).click();
   await expect(page.getByRole('heading', { name: 'Up for grabs', exact: true })).toBeVisible();
   expect(errors.filter((e) => /objectStore|IDB|NotFoundError/i.test(e))).toEqual([]);

@@ -77,6 +77,7 @@ export default function Capture() {
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const captureButtonRef = useRef<HTMLButtonElement>(null);
   const previousStepRef = useRef<Step | null>(null);
+  const step = wip?.step;
   const fileRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const saver = useFileSaver();
@@ -95,12 +96,12 @@ export default function Capture() {
     if (wip && wip.step !== 'saved') void setMeta(wipKey, wip);
   }, [wip, wipKey]);
   useEffect(() => {
-    if (!wip) return;
-    if (wip.step === 'duplicates' || wip.step === 'next' || wip.step === 'scan') stepHeadingRef.current?.focus();
-    else if (wip.step === 'saved') savedHeadingRef.current?.focus();
-    else if (previousStepRef.current === 'saved' && wip.step === 'capture') captureButtonRef.current?.focus();
-    previousStepRef.current = wip.step;
-  }, [wip?.step]);
+    if (!step) return;
+    if (step === 'duplicates' || step === 'next' || step === 'scan') stepHeadingRef.current?.focus();
+    else if (step === 'saved') savedHeadingRef.current?.focus();
+    else if (previousStepRef.current === 'saved' && step === 'capture') captureButtonRef.current?.focus();
+    previousStepRef.current = step;
+  }, [step]);
 
   const candidates = useMemo(() => {
     if (!data || !wip) return [];
