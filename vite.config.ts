@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => ({
   ],
   server: { port: 5173, strictPort: true },
   preview: { port: 4173, strictPort: true, headers: previewHeaders(mode) },
-  build: { target: 'es2022', sourcemap: true },
+  build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 600 },
   test: {
     environment: 'jsdom',
     include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx'],
