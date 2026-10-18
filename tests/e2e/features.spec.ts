@@ -17,6 +17,32 @@ async function signIn(page: Page) {
 
 const estateBase = (page: Page) => page.url().replace(/\/e\/([^/]+).*$/, '/e/$1');
 
+test('keyboard navigation moves focus to the new screen', async ({ page }) => {
+  await signIn(page);
+  const inventory = page.getByRole('link', { name: 'Inventory', exact: true });
+  await inventory.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Inventory', exact: true })).toBeVisible();
+  await expect(page.locator('main')).toBeFocused();
+});
+
+test('batch clear dialog contains keyboard focus and returns it to its trigger', async ({ page }) => {
+  await signIn(page);
+  await page.goto(`${estateBase(page)}/scan`);
+  await page.getByLabel('Item name').fill('Keyboard dialog test');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+
+  const clear = page.getByRole('button', { name: 'Clear', exact: true });
+  await clear.click();
+  const dialog = page.getByRole('dialog', { name: 'Clear this batch?' });
+  await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Clear list' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(clear).toBeFocused();
+});
+
 test('Family settings opens after its estate data loads', async ({ page }) => {
   await signIn(page);
   await page.goto(`${estateBase(page)}/family`);
@@ -58,6 +84,7 @@ test('batch inventory saves several items with shared traits', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'In this batch (3)' })).toBeVisible();
   await page.getByRole('button', { name: /Save 3 new items/ }).click();
   await expect(page.getByRole('heading', { name: 'Saved 3 of 3' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Saved 3 of 3' })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'In this batch (0)' })).toBeVisible();
   // The shared kind and brand were applied.
   await page.getByRole('link', { name: 'Open' }).first().click();
@@ -70,6 +97,7 @@ test('reports open on their own screen, readable, and save as files', async ({ p
   await page.goto(`${estateBase(page)}/reports`);
   await page.getByRole('navigation', { name: 'Reports' }).getByRole('link', { name: /^Inventory/ }).click();
   await expect(page.getByRole('heading', { name: 'Inventory', exact: true })).toBeVisible();
+  await expect(page.getByText(/From the records on this phone/)).toHaveAttribute('aria-live', 'polite');
   await expect(page.getByRole('list', { name: 'Inventory report' }).getByRole('listitem').first()).toBeVisible();
   const csv = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Spreadsheet' }).click();

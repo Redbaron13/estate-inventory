@@ -6,7 +6,7 @@ import { useFileSaver } from '../components/FileSaver';
 import { Icon } from '../components/Icon';
 import { CategoryPicker, LocationPicker } from '../components/pickers';
 import { Scanner } from '../components/Scanner';
-import { ActionDialog, CodeTag, ErrorText, Field, Notice, PageHeader, Spinner } from '../components/ui';
+import { ActionDialog, CodeTag, Dialog, ErrorText, Field, Notice, PageHeader, Spinner } from '../components/ui';
 import { captureItem, online, recordCustody, type CapturePhoto } from '../lib/actions';
 import type { Detected } from '../lib/barcode';
 import { db, getMeta, setMeta } from '../lib/db';
@@ -82,6 +82,8 @@ export default function QuickScan() {
   const [results, setResults] = useState<SaveResult[] | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const commonHeadingRef = useRef<HTMLHeadingElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const rowPhotoRef = useRef<HTMLInputElement>(null);
@@ -95,6 +97,9 @@ export default function QuickScan() {
   useEffect(() => {
     if (batch) void setMeta(key, batch);
   }, [batch, key]);
+  useEffect(() => {
+    if (results) resultsHeadingRef.current?.focus();
+  }, [results]);
 
   if (!data || !batch) return null;
   const locs = byId(data.locations);
@@ -272,7 +277,7 @@ export default function QuickScan() {
 
       {results && (
         <section className="panel mb-6 p-4" aria-labelledby="saved-h">
-          <h2 id="saved-h" className="mb-2">Saved {results.filter((r) => !r.error).length} of {results.length}</h2>
+          <h2 ref={resultsHeadingRef} id="saved-h" tabIndex={-1} className="mb-2">Saved {results.filter((r) => !r.error).length} of {results.length}</h2>
           <ul className="mb-3 divide-y divide-line">
             {results.map((r) => (
               <li key={r.rowId} className="flex flex-wrap items-center gap-2 py-2">
@@ -285,7 +290,7 @@ export default function QuickScan() {
           </ul>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn btn-secondary" onClick={() => void printLabels()} disabled={!results.some((r) => r.item && !r.note)}><Icon name="tag" size={18} /> Labels for these</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setResults(null)}><Icon name="plus" size={18} /> Next batch</button>
+            <button type="button" className="btn btn-secondary" onClick={() => { setResults(null); window.requestAnimationFrame(() => commonHeadingRef.current?.focus()); }}><Icon name="plus" size={18} /> Next batch</button>
           </div>
           {saver.panel}
         </section>
@@ -296,7 +301,7 @@ export default function QuickScan() {
       </Notice>
 
       <section className="panel mb-5 p-4" aria-labelledby="common-h">
-        <h2 id="common-h" className="mb-3">What these items have in common</h2>
+        <h2 ref={commonHeadingRef} id="common-h" tabIndex={-1} className="mb-3">What these items have in common</h2>
         <Field label="Found in (the room)" htmlFor="b-found" hint="Becomes part of each item's code.">
           <LocationPicker id="b-found" data={data} value={batch.foundIn} onChange={(v) => set({ foundIn: v })} allowNone kinds={['PROPERTY', 'AREA', 'CONTAINER']} />
         </Field>
@@ -325,7 +330,7 @@ export default function QuickScan() {
             <button type="button" className="btn btn-secondary btn-block mt-3" onClick={() => setScanning(false)}>Stop scanning</button>
           </div>
         )}
-        {flash && <p className="mb-3 font-bold" role="status">{flash}</p>}
+        {flash && <p className="mb-3 font-bold" role="status" aria-atomic="true">{flash}</p>}
         <form className="mb-3 flex gap-2" onSubmit={addByName}>
           <label htmlFor="b-name" className="sr-only">Item name</label>
           <input id="b-name" className="input flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Type a name, e.g. Dinner plate" />
@@ -341,14 +346,13 @@ export default function QuickScan() {
       </section>
 
       {pending && (
-        <div className="panel mb-5 p-4" role="alertdialog" aria-labelledby="b-dup">
-          <h2 id="b-dup" className="mb-2">This barcode is already recorded</h2>
-          <p className="mb-3">#{pending.match.inventory_number} {pending.match.title}, in {locationPath(pending.match.current_location_id, locs)}.</p>
+        <Dialog open onClose={() => setPending(null)} title="This barcode is already recorded" descriptionId="b-dup-desc">
+          <p id="b-dup-desc" className="mb-3">#{pending.match.inventory_number} {pending.match.title}, in {locationPath(pending.match.current_location_id, locs)}.</p>
           <div className="grid gap-2">
             <button type="button" className="btn btn-secondary" onClick={() => { const m = pending.match; setPending(null); onDetect({ value: m.item_code, format: 'qr_code' }); }}>Same item: move it with this batch</button>
             <button type="button" className="btn btn-primary" onClick={() => { const p = pending; setPending(null); addBarcode(p.value, p.format); }}>Another one: add it as a new item</button>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {busy && <p className="mb-4"><Spinner label={busy} /></p>}
@@ -358,7 +362,7 @@ export default function QuickScan() {
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 id="list-h">In this batch ({batch.rows.length})</h2>
           {batch.rows.length > 0 && (
-            <button type="button" className="btn btn-quiet min-h-10" onClick={() => setConfirmClear(true)}>Clear</button>
+            <button type="button" className="btn btn-quiet min-h-11" onClick={() => setConfirmClear(true)}>Clear</button>
           )}
           <ActionDialog
             open={confirmClear}
@@ -389,7 +393,7 @@ export default function QuickScan() {
                       {r.kind === 'move' ? (
                         <b className="truncate">{r.title}</b>
                       ) : (
-                        <input aria-label={`Name for item ${r.n}`} className="input min-h-10 flex-1 py-1" value={r.title} placeholder={r.barcode ? `Item with barcode ${r.barcode}` : 'Name this item'} onChange={(e) => updateRow(r.id, { title: e.target.value })} />
+                        <input aria-label={`Name for item ${r.n}`} className="input min-h-11 flex-1 py-1" value={r.title} placeholder={r.barcode ? `Item with barcode ${r.barcode}` : 'Name this item'} onChange={(e) => updateRow(r.id, { title: e.target.value })} />
                       )}
                     </div>
                     <p className="mt-1 text-[0.85rem] text-ink-soft">
@@ -399,15 +403,15 @@ export default function QuickScan() {
                       {r.note}
                     </p>
                   </div>
-                  <button type="button" className="btn btn-quiet min-h-10 px-2" aria-label={`Remove item ${r.n} from the batch`} onClick={() => removeRow(r.id)}><Icon name="x" size={18} /></button>
+                  <button type="button" className="btn btn-quiet min-h-11 px-2" aria-label={`Remove item ${r.n} from the batch`} onClick={() => removeRow(r.id)}><Icon name="x" size={18} /></button>
                 </div>
                 {r.kind === 'new' && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2 text-[0.9rem]">How many
-                      <input type="number" min={1} inputMode="numeric" className="input tabular min-h-10 w-20 py-1" value={r.quantity} onChange={(e) => updateRow(r.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
+                      <input type="number" min={1} inputMode="numeric" className="input tabular min-h-11 w-20 py-1" value={r.quantity} onChange={(e) => updateRow(r.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
                     </label>
-                    <button type="button" className="btn btn-quiet min-h-10 px-2" onClick={() => { rowTarget.current = r.id; rowPhotoRef.current?.click(); }}><Icon name="camera" size={16} /> Photo</button>
-                    <button type="button" className="btn btn-quiet min-h-10 px-2" aria-expanded={openRow === r.id} onClick={() => setOpenRow(openRow === r.id ? null : r.id)}><Icon name="pencil" size={16} /> Different kind or brand</button>
+                    <button type="button" className="btn btn-quiet min-h-11 px-2" onClick={() => { rowTarget.current = r.id; rowPhotoRef.current?.click(); }}><Icon name="camera" size={16} /> Photo</button>
+                    <button type="button" className="btn btn-quiet min-h-11 px-2" aria-expanded={openRow === r.id} onClick={() => setOpenRow(openRow === r.id ? null : r.id)}><Icon name="pencil" size={16} /> Different kind or brand</button>
                   </div>
                 )}
                 {openRow === r.id && r.kind === 'new' && (

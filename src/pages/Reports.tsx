@@ -193,7 +193,7 @@ export function ReportDetail() {
   return (
     <div>
       <PageHeader title={def.title} back={`/e/${estateId}/reports`} />
-      <p className="mb-4 text-ink-soft">
+      <p className="mb-4 text-ink-soft" aria-live="polite">
         {def.key === 'activity' ? 'From the shared history on the server.' : `From the records on this phone${lastSyncAt ? `, last synced ${new Date(lastSyncAt).toLocaleString()}` : ''}.`}
         {table && ` ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}.`}
       </p>

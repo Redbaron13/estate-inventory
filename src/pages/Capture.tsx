@@ -73,6 +73,10 @@ export default function Capture() {
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const savedHeadingRef = useRef<HTMLHeadingElement>(null);
+  const captureButtonRef = useRef<HTMLButtonElement>(null);
+  const previousStepRef = useRef<Step | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const saver = useFileSaver();
@@ -90,6 +94,13 @@ export default function Capture() {
   useEffect(() => {
     if (wip && wip.step !== 'saved') void setMeta(wipKey, wip);
   }, [wip, wipKey]);
+  useEffect(() => {
+    if (!wip) return;
+    if (wip.step === 'duplicates' || wip.step === 'next' || wip.step === 'scan') stepHeadingRef.current?.focus();
+    else if (wip.step === 'saved') savedHeadingRef.current?.focus();
+    else if (previousStepRef.current === 'saved' && wip.step === 'capture') captureButtonRef.current?.focus();
+    previousStepRef.current = wip.step;
+  }, [wip?.step]);
 
   const candidates = useMemo(() => {
     if (!data || !wip) return [];
@@ -234,7 +245,7 @@ export default function Capture() {
         {saved.item ? (
           <>
             <div className="mb-6"><CodeTag code={saved.item.item_code} large swing /></div>
-            <h1 className="mb-2">Saved. Item {String(saved.item.inventory_number).padStart(4, '0')} is in the inventory.</h1>
+            <h1 ref={savedHeadingRef} tabIndex={-1} className="mb-2">Saved. Item {String(saved.item.inventory_number).padStart(4, '0')} is in the inventory.</h1>
             <p className="mb-8 text-ink-soft">You can add more information later.{!navigator.onLine && ' It will upload when you have signal.'}</p>
             <div className="grid gap-3">
               <button type="button" className="btn btn-primary btn-block" onClick={another}><Icon name="camera" /> Add another item</button>
@@ -245,7 +256,7 @@ export default function Capture() {
           </>
         ) : (
           <>
-            <h1 className="mb-2">Saved on this phone.</h1>
+            <h1 ref={savedHeadingRef} tabIndex={-1} className="mb-2">Saved on this phone.</h1>
             <p className="mb-8 text-ink-soft">It will get its item number the next time you have signal. Nothing is lost.</p>
             <button type="button" className="btn btn-primary btn-block" onClick={another}><Icon name="camera" /> Add another item</button>
           </>
@@ -299,7 +310,7 @@ export default function Capture() {
             </div>
           )}
           <div className="grid gap-3">
-            <button type="button" className="btn btn-primary btn-block min-h-16 text-lg" onClick={() => fileRef.current?.click()}>
+            <button ref={captureButtonRef} type="button" className="btn btn-primary btn-block min-h-16 text-lg" onClick={() => fileRef.current?.click()}>
               <Icon name="camera" size={26} /> {wip.photos.length ? 'Take another photo' : 'Take photo'}
             </button>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(e) => { void addFiles(e.target.files); e.target.value = ''; }} />
@@ -319,7 +330,10 @@ export default function Capture() {
 
       {/* --------------------------------------------------------------- scan */}
       {wip.step === 'scan' && (
-        <Scanner onDetect={(d) => void onBarcode(d.value, d.format)} hint="Hold the barcode inside the frame. It reads even with no signal." />
+        <div>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-3">Scan barcode</h2>
+          <Scanner onDetect={(d) => void onBarcode(d.value, d.format)} hint="Hold the barcode inside the frame. It reads even with no signal." />
+        </div>
       )}
 
       {/* ------------------------------------------------------------ details */}
@@ -395,7 +409,7 @@ export default function Capture() {
       {/* --------------------------------------------------------- duplicates */}
       {wip.step === 'duplicates' && (
         <div>
-          <h2 className="mb-2">Is this already in the inventory?</h2>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-2">Is this already in the inventory?</h2>
           <p className="mb-5 text-ink-soft">These look similar. Checking now prevents double entries.</p>
           {candidates.slice(0, 3).map((c) => (
             <div key={c.item.id} className="panel mb-4 p-4">
@@ -428,7 +442,7 @@ export default function Capture() {
       {/* --------------------------------------------------------------- next */}
       {wip.step === 'next' && (
         <div>
-          <h2 className="mb-2">What should happen to it?</h2>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-2">What should happen to it?</h2>
           <p className="mb-5 text-ink-soft">Anything other than “Keep for review” becomes a proposal the family approves. Nothing leaves without approval.</p>
           <fieldset className="mb-5 grid gap-2">
             <legend className="sr-only">Next step</legend>

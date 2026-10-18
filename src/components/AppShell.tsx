@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useEstateData, useEstateId, useMeta, useSyncState } from '../lib/hooks';
 import { syncNow } from '../lib/sync';
@@ -88,6 +88,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const estateId = useEstateId();
   const data = useEstateData(estateId);
   const alert = useMeta<unknown>(`ledger_alert:${estateId}`, null);
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.focus();
+  }, [location.pathname]);
   return (
     <div className="flex min-h-dvh flex-col">
       <UpdateBanner />
@@ -106,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         )}
       </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">{children}</main>
+      <main ref={mainRef} tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">{children}</main>
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-sm shadow-md" aria-label="Main">
         <ul className="mx-auto grid max-w-2xl grid-cols-5">
           {TABS.map((t) => (
