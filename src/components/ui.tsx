@@ -127,7 +127,7 @@ export function Thumb({ media, size = 64, full = false, className = '' }: { medi
   return <img src={url} alt="" className={`rounded-lg object-cover ${className}`} style={style} loading="lazy" />;
 }
 
-export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function Dialog({ open, onClose, title, children, descriptionId }: { open: boolean; onClose: () => void; title: string; children: ReactNode; descriptionId?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -142,6 +142,7 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
       onClose={onClose}
       onCancel={onClose}
       aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       className="m-auto w-[min(34rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink backdrop:bg-black/40"
     >
       <div className="max-h-[85dvh] overflow-y-auto p-5">

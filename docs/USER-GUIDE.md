@@ -91,3 +91,13 @@ The same screen shows the **History check**. Your phone keeps a fingerprint of t
 ## Getting help
 
 The question mark at the top of each screen explains that screen and has a button to call the estate administrator.
+
+## Keyboard, screen readers and larger text
+
+Turn on **Larger text** in **More > Family and settings** if you need it. You can also use your device's zoom.
+
+With a keyboard, use Tab and Shift+Tab to move between controls, Enter to activate buttons and links, and Space to toggle checkboxes. When a screen changes, focus moves to its content. Capture steps and saved batch results receive focus so you can continue without searching the page. Dialogs keep keyboard focus inside until you close them, then return focus to the control that opened them.
+
+On iPhone or iPad, turn on VoiceOver in the device's Accessibility settings. Swipe to move between controls and double-tap to activate one. The app uses the same labeled controls and dialogs. Status messages announce additions and report counts.
+
+The browser keyboard regression tests cover screen changes, dialog focus and batch-save results. VoiceOver has not been tested on a physical device as part of this code change. Please report any screen-reader issue to the estate administrator.

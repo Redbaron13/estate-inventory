@@ -140,7 +140,7 @@ export function Scanner({ onDetect, continuous = false, hint }: { onDetect: (d: 
           )}
           {status === 'starting' && <div className="absolute inset-0 flex items-center justify-center text-white">Starting camera…</div>}
           {torch !== null && (
-            <button type="button" onClick={toggleTorch} className="btn absolute right-2 top-2 min-h-10 bg-black/60 px-3 text-white">
+            <button type="button" onClick={toggleTorch} className="btn absolute right-2 top-2 min-h-11 bg-black/60 px-3 text-white">
               {torch ? 'Light off' : 'Light on'}
             </button>
           )}
