@@ -107,7 +107,7 @@ jobs:
           [ -n "${PAGES_SUPABASE_ANON_KEY}" ] && export VITE_SUPABASE_ANON_KEY="${PAGES_SUPABASE_ANON_KEY}"
           [ -n "${PAGES_API_URL}" ] && export VITE_API_URL="${PAGES_API_URL}"
           if [ "${RESET_PASSWORD_FLAG}" = "true" ]; then export VITE_RESET_PASSWORD_FLAG="true"; fi
-          VITE_BASE=/estate-inventory/ VITE_APP_VERSION=${GITHUB_SHA::7} npx vite build --mode hosted --outDir dist-pages
+          VITE_CSP_META=1 VITE_BASE=/estate-inventory/ VITE_APP_VERSION=${GITHUB_SHA::7} npx vite build --mode hosted --outDir dist-pages
           cp dist-pages/index.html dist-pages/404.html
           touch dist-pages/.nojekyll
           rm -f dist-pages/_headers
@@ -162,6 +162,12 @@ jobs:
             echo "::error::Configured API health check failed (HTTP ${health_status}). Verify the API URL, deployment, and hosted credentials."
             exit 1
           fi
+          # The CDN can serve the previous build for a short while, so retry.
+          for attempt in 1 2 3 4 5 6; do
+            if ALLOW_META_CSP=1 node scripts/verify-headers.mjs "$PAGES_URL"; then break; fi
+            if [ "$attempt" = 6 ]; then exit 1; fi
+            sleep 10
+          done
           echo "### GitHub Pages deployment verification" >> "$GITHUB_STEP_SUMMARY"
           echo "- App shell: HTTP ${status}, root element found" >> "$GITHUB_STEP_SUMMARY"
           echo "- API health: HTTP ${health_status}, healthy response" >> "$GITHUB_STEP_SUMMARY"
@@ -255,6 +261,7 @@ jobs:
         run: |
           curl -fsS "$VITE_SUPABASE_URL/functions/v1/api/v1/health"
           curl -fsS -o /dev/null "$SITE_URL"
+          node scripts/verify-headers.mjs "$SITE_URL"
           echo "### Deployed to $TARGET" >> "$GITHUB_STEP_SUMMARY"
           echo "- App: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

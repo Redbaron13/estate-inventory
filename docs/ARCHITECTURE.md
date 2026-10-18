@@ -93,5 +93,5 @@ Candidates are found by barcode, serial number, identical photo hash, and name s
 - Anonymous users get nothing. Signed-in users read only rows from estates they belong to.
 - No table accepts direct writes from the app; all writes go through permission-checked functions.
 - Sign-in by 6-digit email code or password; optional authenticator-app 2FA.
-- Content Security Policy limits the app to its own files and Supabase (`public/_headers`). Enforced by hosts that honour `_headers` (Cloudflare Pages) or `vercel.json`, and in CI; GitHub Pages can't send headers, so it isn't enforced on the current live site.
+- Content Security Policy limits the app to its own files and Supabase (`public/_headers`). Enforced by hosts that honour `_headers` (Cloudflare Pages) or `vercel.json`, and in CI; GitHub Pages can't send headers, so the hosted build carries the same policy in a `<meta>` tag (without `frame-ancestors` and the other headers, which browsers only honour as real headers). `scripts/verify-headers.mjs <url>` fails a deploy when a header is missing or weaker than `public/_headers`; for Pages it accepts the meta tag (`ALLOW_META_CSP=1`) and warns about the missing headers. Moving to Cloudflare Pages or Vercel gives full enforcement.
 - Backups are encrypted with age before leaving GitHub; the private key is kept offline.

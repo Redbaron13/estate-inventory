@@ -25,6 +25,25 @@ function previewHeaders(mode: string): Record<string, string> {
   };
 }
 
+// GitHub Pages can't send headers, so the hosted build carries the policy in a
+// <meta> tag (VITE_CSP_META=1). Browsers ignore frame-ancestors there.
+function cspMeta() {
+  return {
+    name: 'csp-meta',
+    transformIndexHtml: {
+      order: 'post' as const,
+      handler(html: string) {
+        if (process.env.VITE_CSP_META !== '1') return html;
+        const headers = readFileSync(new URL('./public/_headers', import.meta.url), 'utf8');
+        const csp = /^\s+Content-Security-Policy:\s*(.+)$/m.exec(headers)?.[1];
+        if (!csp) return html;
+        const policy = csp.split(';').map((d) => d.trim()).filter((d) => d && !d.startsWith('frame-ancestors')).join('; ');
+        return html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`);
+      },
+    },
+  };
+}
+
 // The whole app (code, fonts, barcode decoder) is stored on the phone at
 // install time so it opens and works with no signal. See src/sw.ts.
 export default defineConfig(({ mode }) => ({
@@ -33,6 +52,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
+    cspMeta(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
