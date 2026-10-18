@@ -21,7 +21,7 @@ A private, offline-first PWA for one family (the owner, Kevin Baron, and his sib
 | API | Supabase Edge Function `api`, version 2, serving `/functions/v1/api/v1/*` |
 | Tests | 29 unit, 79 database (pgTAP), 6 end-to-end (Playwright, phone size); all green locally and in GitHub Actions |
 | Pipeline | PR: CI. Push to mainbranch: CI, then GitHub Pages publish (staging/production deploy steps skip until their secrets exist) |
-| Backups | Built and tested (dump, encrypt, R2 upload, restore drill proven locally) but **not running**: R2 not enabled and secrets not set. Jobs skip quietly; a nightly keep-alive runs |
+| Backups | Built and tested (dump, encrypt, R2 upload, restore drill proven locally) but **not running**: R2 not enabled and secrets not set. Until then the scheduled runs fail with a summary naming the missing settings (so you get an email); a nightly keep-alive still runs. Enabling R2 and running the first backup and drill need the owner |
 | Email sign-in codes | **Not working on hosted** (see Known issues). Password sign-in works |
 | Data in production | One estate, "Demo estate (sample data)" with fictional items, owner as administrator plus two demo members (blair.demo@example.com, casey.demo@example.com). The owner has started adding real test items there |
 
