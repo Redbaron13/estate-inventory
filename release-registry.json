@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "id": "WBx3JOY0",
+      "version": "0.2.0",
+      "distribution": "WB",
+      "architecture": "x3",
+      "deploymentKey": "39287297854:production:WB:x3",
+      "deployed": true,
+      "commit": "36db31aab7c2987db72bf46a5753ca6e8a91cd9c",
+      "environment": "production",
+      "builtAt": "2026-10-19T16:44:46.529Z"
+    }
+  ]
+}
