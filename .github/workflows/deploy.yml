@@ -1,260 +1,190 @@
-# Release pipeline.
-#
-#   push to mainbranch ->  full CI  ->  staging   (only if a staging project is configured)
-#   manual run    ->  full CI  ->  staging or production
-#
-# Production deploys are always manual: Actions > Deploy > Run workflow,
-# choose "production" and type the word production to confirm. Order matters
-# and is fixed: database migrations (forward only), auth settings, the API
-# function, then the app. The phone picks up the new app version and shows
-# "A new version is ready" (nothing in progress is interrupted).
-#
-# Secrets (repository secrets, or secrets in the github-pages environment; names are prefixed). See docs/PIPELINE.md.
 name: Deploy
-
 on:
   push:
-    branches: [mainbranch]
+    branches: [mainbranch, develop]
   workflow_dispatch:
     inputs:
       target:
-        description: Where to deploy
+        description: Environment
         type: choice
         options: [staging, production]
         default: staging
       confirm:
-        description: To deploy to production, type the word production
+        description: Type production for a manual production release
+        type: string
         required: false
-      reset_password_flag:
-        description: Flag to reset temporary password for kevinbaron13@gmail.com
-        type: boolean
-        default: false
-
-concurrency:
-  group: deploy-${{ inputs.target || 'staging' }}
-  cancel-in-progress: false
-
 permissions:
   contents: read
-
+concurrency:
+  group: deploy-${{ inputs.target || (github.ref_name == 'mainbranch' && 'production' || 'staging') }}
+  cancel-in-progress: false
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
-
-  # The app on GitHub Pages (https://redbaron13.github.io/estate-inventory/),
-  # pointed at the hosted Supabase project (.env.hosted). Runs on every push
-  # to mainbranch once all tests pass.
-  pages:
+  release:
     needs: ci
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.confirm == 'production')
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     environment:
-      name: github-pages
-      url: https://redbaron13.github.io/estate-inventory/
+      name: ${{ (inputs.target == 'production' || (github.event_name == 'push' && github.ref_name == 'mainbranch')) && 'github-pages' || 'staging' }}
     permissions:
       contents: write
-      pages: write
-      id-token: write
+    # Allocation is serialized across environments because both share the registry.
     concurrency:
-      group: pages
+      group: release-registry
       cancel-in-progress: false
+    env:
+      TARGET: ${{ inputs.target || (github.ref_name == 'mainbranch' && 'production' || 'staging') }}
+      CONFIRM: ${{ inputs.confirm }}
+      BEFORE: ${{ github.event.before }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROD_REF: ${{ secrets.PROD_SUPABASE_PROJECT_REF }}
+      PROD_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
+      STAGING_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      STAGING_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+      STAGING_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      STAGING_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+      PROD_URL: ${{ secrets.PROD_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+      PROD_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL || secrets.STAGING_SITE_URL }}
+      PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'estate-inventory' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Pages preflight diagnostics
-        env:
-          PAGES_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL || vars.VITE_SUPABASE_URL || '' }}
-          PAGES_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PROD_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || '' }}
-          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+      - name: Resolve environment and check deployment configuration
+        id: config
         run: |
           set -euo pipefail
-          echo "::group::GitHub Pages build context"
-          echo "Ref: ${GITHUB_REF_NAME}"
-          echo "Commit: ${GITHUB_SHA}"
-          echo "Runner Node: $(node --version)"
-          echo "Hosted environment file present: $([ -f .env.hosted ] && echo yes || echo no)"
-          echo "::endgroup::"
-
-          if [ ! -f .env.hosted ]; then
-            echo "::error::Missing .env.hosted and Pages client configuration cannot be resolved."
-            exit 1
-          fi
-          hosted_value() { sed -n "s/^$1=//p" .env.hosted | head -n 1; }
-          supabase_url="${PAGES_SUPABASE_URL:-$(hosted_value VITE_SUPABASE_URL)}"
-          publishable_key="${PAGES_SUPABASE_ANON_KEY:-$(hosted_value VITE_SUPABASE_ANON_KEY)}"
-          api_url="${PAGES_API_URL:-$(hosted_value VITE_API_URL)}"
-          if [ -z "$api_url" ] && [ -n "$supabase_url" ]; then
-            api_url="${supabase_url%/}/functions/v1/api/v1"
-          fi
-          echo "Supabase URL configured: $([ -n "$supabase_url" ] && echo yes || echo no)"
-          echo "Publishable client key configured: $([ -n "$publishable_key" ] && echo yes || echo no)"
-          echo "API endpoint configured: $([ -n "$api_url" ] && echo yes || echo no)"
-          if [[ ! "$supabase_url" =~ ^https:// ]] || [[ ! "$api_url" =~ ^https:// ]] || [ -z "$publishable_key" ]; then
-            echo "::error::Pages configuration is incomplete. Set the public Supabase URL, publishable key, and API endpoint in .env.hosted or repository variables."
-            exit 1
-          fi
-      - name: Build for GitHub Pages
-        run: |
-          set -Eeuo pipefail
-          trap 'status=$?; echo "::error::GitHub Pages build failed (exit ${status}). Review TypeScript and Vite output above."; exit "$status"' ERR
-          npx tsc -b
-          [ -n "${PAGES_SUPABASE_URL}" ] && export VITE_SUPABASE_URL="${PAGES_SUPABASE_URL}"
-          [ -n "${PAGES_SUPABASE_ANON_KEY}" ] && export VITE_SUPABASE_ANON_KEY="${PAGES_SUPABASE_ANON_KEY}"
-          [ -n "${PAGES_API_URL}" ] && export VITE_API_URL="${PAGES_API_URL}"
-          if [ "${RESET_PASSWORD_FLAG}" = "true" ]; then export VITE_RESET_PASSWORD_FLAG="true"; fi
-          VITE_BASE=/estate-inventory/ VITE_APP_VERSION=${GITHUB_SHA::7} npx vite build --mode hosted --outDir dist-pages
-          cp dist-pages/index.html dist-pages/404.html
-          touch dist-pages/.nojekyll
-          rm -f dist-pages/_headers
-          for artifact in index.html 404.html manifest.webmanifest sw.js; do
-            if [ ! -s "dist-pages/${artifact}" ]; then
-              echo "::error::Required Pages artifact is missing or empty: ${artifact}"
-              exit 1
+          if [ "$TARGET" = production ]; then
+            [ "$GITHUB_REF_NAME" = mainbranch ] || { echo '::error::Production must use mainbranch.'; exit 1; }
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$CONFIRM" != production ]; then
+              echo '::error::Type production to confirm a manual release.'; exit 1
             fi
-          done
-          echo "Pages artifact size: $(du -sh dist-pages | cut -f1)"
-          echo "Verified: index.html, 404.html, manifest.webmanifest, sw.js"
-        env:
-          PAGES_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL || vars.VITE_SUPABASE_URL || '' }}
-          PAGES_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PROD_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || '' }}
-          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
-          RESET_PASSWORD_FLAG: ${{ inputs.reset_password_flag || vars.RESET_PASSWORD_FLAG || vars.VITE_RESET_PASSWORD_FLAG || 'false' }}
-      - name: Publish to the gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist-pages
-          publish_branch: gh-pages
-          force_orphan: true
-          commit_message: Publish app build
-      - name: Verify published app and API
-        env:
-          PAGES_URL: https://redbaron13.github.io/estate-inventory/
-          PAGES_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
-        run: |
-          set -euo pipefail
-          body="$(mktemp)"
-          health="$(mktemp)"
-          trap 'rm -f "$body" "$health"' EXIT
-          status=000
-          for attempt in $(seq 1 12); do
-            status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' "$PAGES_URL" || true)"
-            if [ "$status" = 200 ]; then break; fi
-            echo "Pages smoke check attempt ${attempt}/12 returned HTTP ${status}."
-            sleep 5
-          done
-          if [ "$status" != 200 ] || ! grep -q 'id="root"' "$body"; then
-            echo "::error::Published Pages site did not return the expected app shell (HTTP ${status})."
-            exit 1
+            PROJECT_REF="$PROD_REF"; DB_PASSWORD="$PROD_PASSWORD"
+            VITE_SUPABASE_URL="${PROD_URL:-$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted)}"
+            VITE_SUPABASE_ANON_KEY="${PROD_KEY:-$(sed -n 's/^VITE_SUPABASE_ANON_KEY=//p' .env.hosted)}"
+            SITE_URL=https://redbaron13.github.io/estate-inventory/
+            VITE_BASE=/estate-inventory/
+          else
+            PROJECT_REF="$STAGING_REF"; DB_PASSWORD="$STAGING_PASSWORD"
+            VITE_SUPABASE_URL="$STAGING_URL"; VITE_SUPABASE_ANON_KEY="$STAGING_KEY"
+            SITE_URL="$STAGING_SITE_URL"; VITE_BASE=/
+            for name in PROJECT_REF DB_PASSWORD VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SITE_URL CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SUPABASE_ACCESS_TOKEN; do
+              [ -n "${!name}" ] || { echo "::error::Missing staging configuration: $name. See docs/RELEASES.md."; exit 1; }
+            done
+            prod_url="${PROD_URL:-$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted)}"
+            [ "$VITE_SUPABASE_URL" != "$prod_url" ] || { echo '::error::Staging cannot use the production database.'; exit 1; }
           fi
-          api_url="${PAGES_API_URL:-$(sed -n 's/^VITE_API_URL=//p' .env.hosted | head -n 1)}"
-          if [ -z "$api_url" ]; then
-            supabase_url="$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted | head -n 1)"
-            api_url="${supabase_url%/}/functions/v1/api/v1"
-          fi
-          health_status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o "$health" -w '%{http_code}' "${api_url%/}/health" || true)"
-          if [ "$health_status" != 200 ] || ! node -e 'const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(v.ok !== true) process.exit(1)' "$health"; then
-            echo "::error::Configured API health check failed (HTTP ${health_status}). Verify the API URL, deployment, and hosted credentials."
-            exit 1
-          fi
-          echo "### GitHub Pages deployment verification" >> "$GITHUB_STEP_SUMMARY"
-          echo "- App shell: HTTP ${status}, root element found" >> "$GITHUB_STEP_SUMMARY"
-          echo "- API health: HTTP ${health_status}, healthy response" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${PAGES_URL}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
-
-  deploy:
-    needs: ci
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    # Same environment as the pages job, so secrets stored there are visible here too.
-    environment: github-pages
-    env:
-      TARGET: ${{ inputs.target || 'staging' }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      PROJECT_REF: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_PROJECT_REF || secrets.STAGING_SUPABASE_PROJECT_REF }}
-      DB_PASSWORD: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_DB_PASSWORD || secrets.STAGING_SUPABASE_DB_PASSWORD }}
-      VITE_SUPABASE_URL: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_URL || secrets.STAGING_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ inputs.target == 'production' && secrets.PROD_SUPABASE_ANON_KEY || secrets.STAGING_SUPABASE_ANON_KEY }}
-      SITE_URL: ${{ inputs.target == 'production' && secrets.PROD_SITE_URL || secrets.STAGING_SITE_URL }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'estate-inventory' }}
-      SUPABASE_CLI_VERSION: 2.120.0
-    steps:
-      - name: Check target and configuration
-        id: gate
-        run: |
-          if [ "$TARGET" = "production" ] && [ "${{ inputs.confirm }}" != "production" ]; then
-            echo "::error::To deploy to production, type the word production in the confirm box."; exit 1
-          fi
-          if [ -z "$PROJECT_REF" ]; then
-            if [ "$TARGET" = "staging" ]; then
-              echo "No staging project configured (STAGING_SUPABASE_PROJECT_REF). Skipping the automatic staging deploy."
-              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          [[ "$VITE_SUPABASE_URL" == https://* ]] && [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo '::error::Public client configuration is incomplete.'; exit 1; }
+          deploy_backend=false
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_REF" ] && [ -n "$DB_PASSWORD" ]; then
+            deploy_backend=true
+          else
+            if [ -n "$BEFORE" ] && [[ ! "$BEFORE" =~ ^0+$ ]]; then
+              baseline="$BEFORE"
+            else
+              baseline=HEAD^
             fi
-            echo "::error::PROD_SUPABASE_PROJECT_REF is not set."; exit 1
+            if [ -n "$(git diff --name-only "$baseline" HEAD -- supabase/)" ]; then
+              echo '::error::Backend files changed but Supabase deployment credentials are missing. Refusing a partial release.'; exit 1
+            fi
+            echo '::notice::Frontend release. Backend credentials are not configured; existing API remains in use.'
           fi
-          for v in SUPABASE_ACCESS_TOKEN DB_PASSWORD VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SITE_URL CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
-            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v ($TARGET). See docs/PIPELINE.md."; exit 1; fi
-          done
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
-      - if: steps.gate.outputs.skip != 'true'
-        uses: actions/checkout@v7
-      - if: steps.gate.outputs.skip != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - if: steps.gate.outputs.skip != 'true'
-        run: npm ci
-      - if: steps.gate.outputs.skip != 'true'
+          echo "backend=$deploy_backend" >> "$GITHUB_OUTPUT"
+          # Only public client values belong in GITHUB_ENV. Passwords stay step-local.
+          {
+            echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
+            echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY"
+            echo "VITE_API_URL=${VITE_SUPABASE_URL%/}/functions/v1/api/v1"
+            echo "SITE_URL=$SITE_URL"
+            echo "VITE_BASE=$VITE_BASE"
+            echo "RELEASE_ENV=$TARGET"
+          } >> "$GITHUB_ENV"
+      - name: Install Supabase CLI
+        if: steps.config.outputs.backend == 'true'
         uses: supabase/setup-cli@v3
         with:
-          version: ${{ env.SUPABASE_CLI_VERSION }}
-
-      - name: Database migrations (forward only, never the demo seed)
-        if: steps.gate.outputs.skip != 'true'
+          version: 2.120.0
+      - name: Migrate database and deploy API before publishing the app
+        if: steps.config.outputs.backend == 'true'
         run: |
+          set -euo pipefail
+          if [ "$TARGET" = production ]; then
+            PROJECT_REF="$PROD_REF"; DB_PASSWORD="$PROD_PASSWORD"
+          else
+            PROJECT_REF="$STAGING_REF"; DB_PASSWORD="$STAGING_PASSWORD"
+          fi
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
           supabase db push --dry-run --password "$DB_PASSWORD"
           supabase db push --yes --password "$DB_PASSWORD"
-
-      - name: Auth settings (sign-in codes, templates, redirect URLs)
-        if: steps.gate.outputs.skip != 'true'
-        run: supabase config push --project-ref "$PROJECT_REF" --yes
-
-      - name: API function
-        if: steps.gate.outputs.skip != 'true'
-        run: |
-          supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$SITE_URL"
+          supabase config push --project-ref "$PROJECT_REF" --yes
+          origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
+          supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
-
-      - name: Build the app
-        if: steps.gate.outputs.skip != 'true'
+      - name: Reserve a globally unique release identity
+        id: identity
+        run: node scripts/reserve-release.mjs
+        env:
+          RELEASE_KEY: ${{ github.run_id }}:${{ env.TARGET }}:WB:x3
+      - name: Build the installable and browser app
         run: npm run build
         env:
+          RELEASE_PREPARED: 'true'
           VITE_APP_ENV: ${{ env.TARGET }}
-          VITE_APP_VERSION: ${{ github.sha }}
-
-      - name: Publish to Cloudflare Pages
-        if: steps.gate.outputs.skip != 'true'
+      - name: Keep the exact release for download and rollback
+        uses: actions/upload-artifact@v7
+        with:
+          name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
+          path: dist/
+          retention-days: 90
+      - name: Prepare GitHub Pages
+        if: env.TARGET == 'production'
         run: |
-          BRANCH=$([ "$TARGET" = "production" ] && echo "${GITHUB_REF_NAME:-mainbranch}" || echo staging)
-          npx wrangler pages project create "$PAGES_PROJECT" --production-branch mainbranch 2>/dev/null || true
-          npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "$BRANCH" --commit-hash "$GITHUB_SHA" --commit-dirty=true
-
-      - name: Smoke test
-        if: steps.gate.outputs.skip != 'true'
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+          rm -f dist/_headers
+      - name: Publish production
+        if: env.TARGET == 'production'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: Kevin Baron
+          user_email: 98280733+Redbaron13@users.noreply.github.com
+          commit_message: Release ${{ steps.identity.outputs.version }} ${{ steps.identity.outputs.id }}
+      - name: Publish staging
+        if: env.TARGET == 'staging'
+        run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch staging --commit-hash "$GITHUB_SHA" --commit-dirty=true
+      - name: Verify the exact published release and backend health
+        env:
+          EXPECTED_ID: ${{ steps.identity.outputs.id }}
         run: |
-          curl -fsS "$VITE_SUPABASE_URL/functions/v1/api/v1/health"
-          curl -fsS -o /dev/null "$SITE_URL"
-          echo "### Deployed to $TARGET" >> "$GITHUB_STEP_SUMMARY"
-          echo "- App: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          matched=false
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 20 "${SITE_URL%/}/release.json?run=$GITHUB_RUN_ID" -o /tmp/published-release.json &&
+              node --input-type=module -e 'import fs from "node:fs"; const r=JSON.parse(fs.readFileSync("/tmp/published-release.json")); if(r.id !== process.env.EXPECTED_ID || r.commit !== process.env.GITHUB_SHA) process.exit(1)'; then
+              matched=true; break
+            fi
+            sleep 10
+          done
+          [ "$matched" = true ] || { echo '::error::The published release did not match this build.'; exit 1; }
+          curl -fsS --max-time 30 "$VITE_API_URL/health" | node --input-type=module -e 'let s=""; for await(const c of process.stdin)s+=c; if(JSON.parse(s).ok!==true)process.exit(1)'
+          {
+            echo "### Released ${{ steps.identity.outputs.version }} / $EXPECTED_ID"
+            echo "- Environment: $TARGET"
+            echo "- Open: $SITE_URL"
+            echo "- Install: open More > Install on this device"
+            echo "- Exact release manifest and API health verified"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -7,6 +7,7 @@ import {
 import { useFileSaver } from '../components/FileSaver';
 import { Icon } from '../components/Icon';
 import { EmptyState, ErrorText, LinkRow, Notice, PageHeader, Spinner } from '../components/ui';
+import { beneficiarySummaryReport, familyChoicesReport } from '../lib/family-reports';
 import { api } from '../lib/api';
 import { blobFile } from '../lib/files';
 import { useEstateData, useEstateId, useMe, useMeta, useMyMembership, useOnline, useSyncState } from '../lib/hooks';
@@ -15,11 +16,13 @@ import { useEstateData, useEstateId, useMe, useMeta, useMyMembership, useOnline,
 // work offline (except the full activity history, which comes from the server
 // so that it is complete). The same builders produce the API's CSV exports.
 
-type ReportKey = 'inventory' | 'valuation' | 'distribution' | 'exceptions' | 'activity';
+type ReportKey = 'inventory' | 'valuation' | 'distribution' | 'exceptions' | 'activity' | 'choices' | 'beneficiaries';
 
 interface ReportDef { key: ReportKey; title: string; detail: string; needsOnline?: boolean }
 
 export const REPORTS: ReportDef[] = [
+  { key: 'choices', title: 'Family choices', detail: "Each sibling's latest answer, discussion notes, and missing responses. Sealed choices stay hidden." },
+  { key: 'beneficiaries', title: 'Beneficiary summary', detail: 'Assigned values, completed transfers, pending handoffs, and missing valuations by person.' },
   { key: 'inventory', title: 'Inventory', detail: 'Every item with its place, condition, status, value, who it is assigned to, and what finally happened.' },
   { key: 'valuation', title: 'Values', detail: 'Totals kept separate: family estimates, outside estimates, appraisals, sale proceeds, donation values.' },
   { key: 'distribution', title: 'Who received what', detail: 'By family member: items, assigned values, transfer dates, receipts, and who approved.' },
@@ -29,6 +32,8 @@ export const REPORTS: ReportDef[] = [
 
 function buildLocal(key: ReportKey, data: EstateData): Table | null {
   switch (key) {
+    case 'choices': return familyChoicesReport(data);
+    case 'beneficiaries': return beneficiarySummaryReport(data);
     case 'inventory': return inventoryReport(data);
     case 'valuation': return valuationReport(data);
     case 'distribution': return distributionReport(data);
@@ -113,6 +118,8 @@ function toCard(key: ReportKey, headers: string[], row: (string | number)[]): Ca
     from.filter((i) => !skip.includes(i) && !blank(row[i])).map((i) => [headers[i], v(i)] as [string, string]);
   const all = headers.map((_, i) => i);
   switch (key) {
+    case 'choices':
+      return { title: `#${v(0)} ${v(2)}`, subtitle: v(4), fields: rest(all, [0, 2, 4]) };
     case 'inventory':
       return { title: `#${v(0)} ${v(2)}`, subtitle: v(1), fields: rest(all, [0, 1, 2]) };
     case 'distribution':
@@ -193,6 +200,7 @@ export function ReportDetail() {
   return (
     <div>
       <PageHeader title={def.title} back={`/e/${estateId}/reports`} />
+      <Notice tone="neutral" icon="file">This report is a dated working record for the administrator, family, or attorney. Check pending uploads, missing values, receipts, and unresolved decisions before using it for a court filing. It does not certify completeness or replace a required court form.</Notice>
       <p className="mb-4 text-ink-soft">
         {def.key === 'activity' ? 'From the shared history on the server.' : `From the records on this phone${lastSyncAt ? `, last synced ${new Date(lastSyncAt).toLocaleString()}` : ''}.`}
         {table && ` ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}.`}
@@ -237,11 +245,11 @@ export function ReportDetail() {
                   <p className="font-bold">{card.title}</p>
                   {card.subtitle && <p className="text-[0.92rem] text-ink-soft">{card.subtitle}</p>}
                   {card.fields.length > 0 && (
-                    <dl className="mt-2 grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-[0.92rem]">
+                    <dl className="mt-2 grid grid-cols-[minmax(6rem,0.7fr)_minmax(0,1fr)] gap-x-3 gap-y-1 text-[0.92rem]">
                       {card.fields.map(([label, value]) => (
                         <div key={label} className="contents">
                           <dt className="text-ink-soft">{label}</dt>
-                          <dd className={label === 'Fingerprint' || label === 'Item code' ? 'code break-all' : ''}>{value}</dd>
+                          <dd className={label === 'Fingerprint' || label === 'Item code' ? 'code break-all' : 'break-words'}>{value}</dd>
                         </div>
                       ))}
                     </dl>
@@ -256,3 +264,4 @@ export function ReportDetail() {
     </div>
   );
 }
+

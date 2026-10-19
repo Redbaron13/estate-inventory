@@ -1,3 +1,5 @@
+> Work in progress, 2026-10-19: release 0.2.0 is being prepared for mainbranch. See docs/RELEASES.md. Added room-first capture, resumable batch IDs, family-choice and beneficiary reports, install help, responsive navigation, and reserved deployment identities. Do not treat these as deployed until the Deploy workflow verifies the exact live release. The connected Supabase account does not expose project dszldulsyoovtnsaquay.
+
 # Handoff: Estate Inventory
 
 The working state of the project for the next person or AI agent picking it up. Read this first, then `README.md`, then `docs/`. Last updated 2026-10-12.
@@ -152,3 +154,4 @@ Release: push to `mainbranch`; CI must pass; the `pages` job republishes the app
 - History: `DATABASE_URL=... node scripts/verify-ledger.mjs` (add `--heads file` to compare with saved fingerprints).
 - Labels: render `itemLabelsPdf` output with `pdftoppm -r 200` and decode with zxing-wasm; every code must decode.
 - Live smoke: `curl https://dszldulsyoovtnsaquay.supabase.co/functions/v1/api/v1/health`.
+

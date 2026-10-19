@@ -38,6 +38,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:release
       - name: Production build
         run: npm run build
         env:
@@ -87,6 +88,14 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:54321/functions/v1/api/v1/health >/dev/null && break; sleep 2; done
           npx playwright test
+      - name: Keep responsive UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: responsive-ui
+          path: test-results/ui/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Keep the test report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -99,3 +108,4 @@ jobs:
       - name: Function logs on failure
         if: failure()
         run: docker logs $(docker ps --format '{{.Names}}' | grep edge_runtime | head -1) 2>&1 | tail -200
+

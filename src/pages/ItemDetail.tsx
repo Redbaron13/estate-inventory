@@ -46,7 +46,7 @@ function Facts({ item, data }: { item: Item; data: EstateData }) {
   return (
     <dl className="mb-6 divide-y divide-line border-y border-line">
       {rows.filter(([, v]) => v).map(([k, v]) => (
-        <div key={k} className="grid grid-cols-[9rem_1fr] gap-3 py-2.5">
+        <div key={k} className="item-facts-row grid grid-cols-[minmax(6rem,0.7fr)_minmax(0,1fr)] gap-3 py-2.5">
           <dt className="text-ink-soft">{k}</dt>
           <dd className={k === 'Serial number' || k === 'Barcode' ? 'code' : ''}>{v}</dd>
         </div>
@@ -282,11 +282,19 @@ function RoundSection({ item, data, me, member }: { item: Item; data: EstateData
   const [winner, setWinner] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const [choiceBusy, setChoiceBusy] = useState(false);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
   if (!round) return null;
+  const roundId = round.round.id;
   const manager = member?.role === 'ADMINISTRATOR' || member?.role === 'EXECUTOR';
   const canClaim = member && !['VIEW_ONLY', 'APPRAISER'].includes(member.role);
   const open = round.round.mode === 'OPEN' || round.sealed;
-  const answer = (i: Interest) => void setClaim(item, i, note || null, round.round.id);
+  async function answer(i: Interest) {
+    setChoiceBusy(true); setChoiceError(null);
+    try { await setClaim(item, i, note || null, roundId); }
+    catch (e) { setChoiceError((e as Error).message); }
+    finally { setChoiceBusy(false); }
+  }
   const n = round.interested.length;
   return (
     <section className="panel mb-6 p-4" aria-labelledby="grab-h">
@@ -297,13 +305,15 @@ function RoundSection({ item, data, me, member }: { item: Item; data: EstateData
       ) : round.round.mode === 'SEALED' ? (
         <p className="mb-3">Choices were revealed {fmtDate(round.round.reveal_at)}.</p>
       ) : null}
+      <p className="workflow-hint mb-3 text-ink-soft">Choose what matters to you. Discuss first asks for information or a family conversation. A preference does not transfer ownership.</p>
+      <ErrorText error={choiceError} />
       {round.myClaim && <p className="mb-3">Your answer: <b>{INTEREST_LABELS[round.myClaim.interest]}</b>{round.myClaim.note ? ` (“${round.myClaim.note}”)` : ''}</p>}
       {open && canClaim && (
         <>
-          <Field label="Note (optional)" htmlFor="claim-note"><input id="claim-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. It was in my room growing up" /></Field>
+          <Field label="Note (optional)" htmlFor="claim-note"><input id="claim-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Sentimental value, question about the item, or reason to discuss" /></Field>
           <div className="mb-3 grid gap-2 sm:grid-cols-3">
             {(['INTERESTED', 'NOT_INTERESTED', 'NEED_INFO'] as Interest[]).map((i) => (
-              <button key={i} type="button" className={`btn ${round.myClaim?.interest === i ? 'btn-primary' : 'btn-secondary'}`} onClick={() => answer(i)}>{INTEREST_LABELS[i]}</button>
+              <button key={i} type="button" className={`btn ${round.myClaim?.interest === i ? 'btn-primary' : 'btn-secondary'}`} disabled={choiceBusy} onClick={() => void answer(i)}>{i === 'NEED_INFO' ? 'Discuss first' : INTEREST_LABELS[i]}</button>
             ))}
           </div>
           {!navigator.onLine && round.sealed && <p className="mb-3 text-[0.92rem] text-ink-soft">You're offline. Your answer counts when it reaches the server, so send it before the reveal time.</p>}
@@ -672,3 +682,4 @@ export default function ItemDetail() {
     </div>
   );
 }
+

@@ -15,7 +15,8 @@ async function snap(page: Page, filename: string) {
   await page.screenshot({ path: path.join(WIKI_IMAGES, `${filename}.png`), fullPage: true });
 }
 
-test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => {
+test('capture comprehensive mobile-first wiki screenshots', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone', 'Wiki screen capture runs once; responsive features are tested on every viewport.');
   test.setTimeout(90_000);
   const pageErrors: string[] = [];
   const familyScriptRequests: string[] = [];
@@ -102,6 +103,7 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => 
   // 11. Batch Inventory / QuickScan
   await page.goto(`${base}/scan`);
   await expect(page.getByRole('heading', { name: 'Batch inventory' })).toBeVisible();
+  await page.getByText('Shared details and family choices (optional)', { exact: true }).click();
   await page.getByLabel('Kind of item').first().selectOption('CHN');
   await page.getByLabel('Brand or maker (optional)').fill('Wedgwood');
   await snap(page, '11-batch-inventory');
@@ -171,3 +173,4 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }) => 
   await expect(familyHeading).toBeVisible();
   await snap(page, '20-family-settings');
 });
+

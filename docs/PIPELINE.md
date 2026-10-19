@@ -1,3 +1,5 @@
+> Release update (0.2.0): see [RELEASES.md](RELEASES.md) for the current mainbranch/develop workflow, identifiers, environment settings and installation instructions. That document supersedes the deployment instructions below. The backup and restore instructions below still apply.
+
 # Making and releasing changes
 
 ```
@@ -93,3 +95,4 @@ Set under GitHub > Settings > Secrets and variables > Actions. GitHub Free has n
 
 - **Required checks before merging** need branch protection, which GitHub only offers for private repositories on a paid plan (Pro, $4/month). Without it, merging a red pull request is possible, but production still can't receive it: the deploy job reruns CI and stops on failure.
 - **GitHub Actions minutes**: private repositories get 2,000 free minutes a month. One CI run is about 15 minutes, and a merged change runs it twice (on the pull request, then before deploying). The nightly backup takes about 5 minutes and the monthly drill about 15, which leaves room for roughly 60 merged changes a month.
+
