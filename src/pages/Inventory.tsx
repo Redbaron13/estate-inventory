@@ -71,7 +71,7 @@ export default function Inventory() {
     const result = new Map<string, NonNullable<typeof data>['media'][number]>();
     if (!data) return result;
     const hidden = new Set(data.redactions.map(r => r.media_id));
-    for (const media of data.media) if (!result.has(media.item_id) && !hidden.has(media.id) && media.mime_type.startsWith('image/')) result.set(media.item_id, media);
+    for (const media of data.media) if (media.item_id && !result.has(media.item_id) && !hidden.has(media.id) && media.mime_type.startsWith('image/')) result.set(media.item_id, media);
     return result;
   }, [data]);
   if (!data) return null;
