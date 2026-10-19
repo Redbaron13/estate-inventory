@@ -14,7 +14,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Isolate commits so a stalled Docker cancellation cannot block a newer check.
+  # Repeated runs of the same commit still deduplicate; deploy.yml serializes publication.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
