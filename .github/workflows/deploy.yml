@@ -105,6 +105,16 @@ jobs:
             echo "VITE_BASE=$VITE_BASE"
             echo "RELEASE_ENV=$TARGET"
           } >> "$GITHUB_ENV"
+      - name: Reserve a globally unique release identity
+        id: identity
+        run: node scripts/reserve-release.mjs
+        env:
+          RELEASE_KEY: ${{ github.run_id }}:${{ env.TARGET }}:WB:x3
+      - name: Build the installable and browser app
+        run: npm run build
+        env:
+          RELEASE_PREPARED: 'true'
+          VITE_APP_ENV: ${{ env.TARGET }}
       - name: Install Supabase CLI
         if: steps.config.outputs.backend == 'true'
         uses: supabase/setup-cli@v3
@@ -127,16 +137,6 @@ jobs:
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
-      - name: Reserve a globally unique release identity
-        id: identity
-        run: node scripts/reserve-release.mjs
-        env:
-          RELEASE_KEY: ${{ github.run_id }}:${{ env.TARGET }}:WB:x3
-      - name: Build the installable and browser app
-        run: npm run build
-        env:
-          RELEASE_PREPARED: 'true'
-          VITE_APP_ENV: ${{ env.TARGET }}
       - name: Prepare GitHub Pages
         if: env.TARGET == 'production'
         run: |
