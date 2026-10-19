@@ -8,13 +8,13 @@ import { recordDiagnostic } from './lib/diagnostics';
 import { refreshMyEstates, startSync } from './lib/sync';
 import { preloadDetector } from './lib/barcode';
 import Home from './pages/Home';
-import Inventory from './pages/Inventory';
-import ItemDetail from './pages/ItemDetail';
 import Capture from './pages/Capture';
 import SignIn from './pages/SignIn';
-import Estates from './pages/Estates';
 
 // Less-used screens load on demand (they are still stored for offline use).
+const Inventory = lazy(() => import('./pages/Inventory'));
+const ItemDetail = lazy(() => import('./pages/ItemDetail'));
+const Estates = lazy(() => import('./pages/Estates'));
 const QuickScan = lazy(() => import('./pages/QuickScan'));
 const Decisions = lazy(() => import('./pages/Decisions'));
 const Reports = lazy(() => import('./pages/Reports'));

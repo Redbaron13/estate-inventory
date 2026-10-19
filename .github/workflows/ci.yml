@@ -44,6 +44,8 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:54321
           VITE_SUPABASE_ANON_KEY: ci-placeholder
           VITE_APP_ENV: ci
+      - name: Bundle size budget
+        run: npm run check:bundle
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x

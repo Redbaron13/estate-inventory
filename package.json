@@ -23,6 +23,7 @@
     "db:new": "supabase migration new",
     "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "functions:serve": "supabase functions serve --env-file supabase/functions/.env.local",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "verify:ledger": "node scripts/verify-ledger.mjs",
     "verify:backup": "node scripts/verify-backup.mjs",
     "check": "npm run lint && npm run typecheck && npm run test"
