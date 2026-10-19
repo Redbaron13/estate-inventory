@@ -124,7 +124,7 @@ export default function QuickScan() {
   if (!data || !batch || loadedKey !== key) return <Spinner label="Opening your batch" />;
   if (member && !member.can_add_items) return <Notice tone="neutral" icon="lock">Your role does not allow adding inventory. Ask an administrator in Family and settings.</Notice>;
   const locs = byId(data.locations);
-  const target = batch.putIn ?? data.estate?.default_location_id ?? null;
+  const target = batch.putIn ?? batch.foundIn ?? data.estate?.default_location_id ?? null;
   const set = (patch: Partial<Batch>) => setBatch((b) => (b ? { ...b, ...patch } : b));
   const say = (text: string) => { setFlash(text); window.setTimeout(() => setFlash((f) => (f === text ? null : f)), 3500); };
 
@@ -339,7 +339,7 @@ export default function QuickScan() {
           <LocationPicker id="b-found" data={data} value={batch.foundIn} onChange={(v) => set({ foundIn: v })} allowNone kinds={['PROPERTY', 'AREA', 'CONTAINER']} />
         </Field>
         <details className="mb-3"><summary className="cursor-pointer py-2 font-bold text-action">Shared details and family choices (optional)</summary>
-        <Field label="Going to" htmlFor="b-put" hint="A box, staging area or the holding area. Scanning a place label sets this too.">
+        <Field label="Going to" htmlFor="b-put" hint="Leave this as the found room unless you physically move the items. Scan a box or place label to change the destination.">
           <LocationPicker id="b-put" data={data} value={target} onChange={(v) => set({ putIn: v })} kinds={['PROPERTY', 'AREA', 'CONTAINER', 'STAGING', 'HOLDING']} createKind="CONTAINER" />
         </Field>
         <div className="grid gap-x-3 sm:grid-cols-2">

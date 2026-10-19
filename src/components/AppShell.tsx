@@ -51,7 +51,7 @@ function HelpButton({ estateId }: { estateId: string }) {
           <p className="mb-5 text-ink-soft">An administrator can add a help contact in Family &amp; settings.</p>
         )}
         <ul className="space-y-3">
-          <li><b>Everything saves by itself.</b> If you lose signal, your work stays on this phone and uploads later.</li>
+          <li><b>Saved items upload automatically.</b> If you lose signal, they stay on this device and upload later. A batch list stays only on this device until you choose Save items.</li>
           <li><b>Nothing can be deleted.</b> Mistakes are fixed by adding a correction, so you can't break anything.</li>
           <li><b>Photograph first.</b> You can add details later.</li>
           <li><b>Use the voice button on your keyboard</b> to speak descriptions instead of typing.</li>

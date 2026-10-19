@@ -29,6 +29,7 @@ jobs:
       name: ${{ (inputs.target == 'production' || (github.event_name == 'push' && github.ref_name == 'mainbranch')) && 'github-pages' || 'staging' }}
     permissions:
       contents: write
+      pages: write
     # Allocation is serialized across environments because both share the registry.
     concurrency:
       group: release-registry
@@ -82,21 +83,16 @@ jobs:
               [ -n "${!name}" ] || { echo "::error::Missing staging configuration: $name. See docs/RELEASES.md."; exit 1; }
             done
             prod_url="${PROD_URL:-$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted)}"
-            [ "$VITE_SUPABASE_URL" != "$prod_url" ] || { echo '::error::Staging cannot use the production database.'; exit 1; }
+            staging_origin="$(node --input-type=module -e 'console.log(new URL(process.env.STAGING_URL).origin)')"
+            production_origin="$(PRODUCTION_URL="$prod_url" node --input-type=module -e 'console.log(new URL(process.env.PRODUCTION_URL).origin)')"
+            [ "$staging_origin" != "$production_origin" ] || { echo '::error::Staging cannot use the production database.'; exit 1; }
           fi
           [[ "$VITE_SUPABASE_URL" == https://* ]] && [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo '::error::Public client configuration is incomplete.'; exit 1; }
           deploy_backend=false
           if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_REF" ] && [ -n "$DB_PASSWORD" ]; then
             deploy_backend=true
           else
-            if [ -n "$BEFORE" ] && [[ ! "$BEFORE" =~ ^0+$ ]]; then
-              baseline="$BEFORE"
-            else
-              baseline=HEAD^
-            fi
-            if [ -n "$(git diff --name-only "$baseline" HEAD -- supabase/)" ]; then
-              echo '::error::Backend files changed but Supabase deployment credentials are missing. Refusing a partial release.'; exit 1
-            fi
+            node scripts/check-backend-deploy.mjs
             echo '::notice::Frontend release. Backend credentials are not configured; existing API remains in use.'
           fi
           echo "backend=$deploy_backend" >> "$GITHUB_OUTPUT"
@@ -126,6 +122,7 @@ jobs:
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
           supabase db push --dry-run --password "$DB_PASSWORD"
           supabase db push --yes --password "$DB_PASSWORD"
+          node scripts/configure-deploy.mjs
           supabase config push --project-ref "$PROJECT_REF" --yes
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
