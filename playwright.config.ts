@@ -14,10 +14,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     launchOptions: process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : undefined,
   },
+  workers: 1,
   projects: [
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } },
+    { name: 'tablet', use: { ...devices['iPad Mini'], defaultBrowserType: 'chromium' } },
     {
       name: 'phone',
       use: { ...devices['Pixel 7'], permissions: ['camera'] },
     },
   ],
 });
+

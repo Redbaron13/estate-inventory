@@ -16,3 +16,8 @@ coverage/
 Thumbs.db
 supabase/functions/.local-ca.crt
 dist-pages/
+
+
+# Generated at build time; reserved releases live on release-registry.
+public/release.json
+project-memory/

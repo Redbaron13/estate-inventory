@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { proposalView, roundView, summarize, exceptions } from '../../supabase/functions/_shared/domain.ts';
+import { RoomProgress } from '../components/RoomProgress';
 import { Icon } from '../components/Icon';
 import { LinkRow, Notice } from '../components/ui';
 import { useEstateData, useEstateId, useMe, useMeta, useMyMembership } from '../lib/hooks';
@@ -52,14 +53,13 @@ export default function Home() {
         </Link>
       )}
 
-      <Link to={`${base}/add`} className="btn btn-primary btn-block mb-3 min-h-16 text-lg">
-        <Icon name="camera" size={26} /> Add an item
-      </Link>
-      {!simple && (
-        <Link to={`${base}/scan`} className="btn btn-secondary btn-block mb-6">
-          <Icon name="scan" /> Batch inventory: many items at once
-        </Link>
-      )}
+      <h1 className="mb-2">One room at a time</h1>
+      <p className="workflow-hint mb-5 text-ink-soft">Capture what is there today. Add names and values later, hear each sibling's preferences, then record approved handoffs.</p>
+      {membership?.can_add_items !== false && <>
+        <Link to={`${base}/scan`} className="btn btn-primary btn-block mb-3 min-h-16 text-lg"><Icon name="camera" size={26} /> Photograph a room's items</Link>
+        <Link to={`${base}/add`} className="btn btn-secondary btn-block mb-6"><Icon name="plus" /> Add an item with full details</Link>
+      </>}
+      <RoomProgress data={data} estateId={estateId} />
 
       <section className="panel mb-6 px-4" aria-label="Places to go">
         <LinkRow to={`${base}/items?filter=review`} icon="search" title="Review items" detail="Recorded but missing details or a decision" count={s.needsReview} />
@@ -105,3 +105,4 @@ export default function Home() {
     </div>
   );
 }
+

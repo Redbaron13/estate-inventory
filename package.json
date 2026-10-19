@@ -1,7 +1,7 @@
 {
   "name": "estate-inventory",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Offline-first PWA for families to inventory and fairly distribute a loved one's personal property.",
   "type": "module",
   "engines": {
@@ -25,7 +25,11 @@
     "functions:serve": "supabase functions serve --env-file supabase/functions/.env.local",
     "verify:ledger": "node scripts/verify-ledger.mjs",
     "verify:backup": "node scripts/verify-backup.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "npm run test:release && npm run lint && npm run typecheck && npm run test",
+    "prebuild": "node scripts/build-metadata.mjs",
+    "test:release": "node --test tests/release-id.test.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "predev": "node scripts/prepare-release.mjs"
   },
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",

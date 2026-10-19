@@ -91,3 +91,17 @@ The same screen shows the **History check**. Your phone keeps a fingerprint of t
 ## Getting help
 
 The question mark at the top of each screen explains that screen and has a button to call the estate administrator.
+
+
+## Clear a full house in manageable passes
+
+1. In Places and labels, add your own bedrooms, kitchen, closets, basement and boxes. Use names the family recognizes.
+2. Home > Photograph a room's items > choose the room. Photograph each object separately or import several earlier photos. Each photo becomes one item; extra angles belong on that item's row.
+3. Leave names, categories and values blank when you need speed. Open Shared details to apply a category, brand, condition or destination to the whole batch, or override a particular row.
+4. Wait for “Batch saved on this device.” The list survives leaving the screen on this device. Choose Save items to add the records and queue uploads. Until then the batch is not shared or included in estate reports.
+5. Later use Inventory > Needs information, filter by room, open an item, and Edit details. Add a name, value, marking photos, or notes. Keep valuable objects on hold pending appraisal.
+6. For items ready for family input, enable Ask the family about these items before saving, or open an existing item and put it Up for grabs. Each sibling chooses I want it, Not for me, or Discuss first and can leave a note. A missing answer is not a refusal. Sealed choices stay hidden until the reveal time.
+7. Use Decisions to approve a disposition under the estate's chosen rule. Record the actual handoff and receipt separately. An expression of interest is not an assignment or completed transfer.
+8. Reports > Family choices shows the latest round and missing answers; Beneficiary summary shows assigned values and outstanding handoffs. Use Who received what for individual transfers and approvals. Export PDF or Spreadsheet for your administrator or attorney. Check pending uploads and exceptions before relying on a report.
+
+More > Make this device comfortable lets you hide workflow hints or use compact inventory rows. Family and settings has larger text, simpler screens, permissions and decision rules. Room and box names are customizable. Inventory categories remain the standard code list so permanent item codes stay consistent.

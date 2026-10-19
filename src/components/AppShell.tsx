@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useEstateData, useEstateId, useMeta, useSyncState } from '../lib/hooks';
+import { applyDeviceOptions } from './DeviceOptions';
 import { syncNow } from '../lib/sync';
 import { Dialog } from './ui';
 import { Icon, type IconName } from './Icon';
@@ -50,7 +51,7 @@ function HelpButton({ estateId }: { estateId: string }) {
           <p className="mb-5 text-ink-soft">An administrator can add a help contact in Family &amp; settings.</p>
         )}
         <ul className="space-y-3">
-          <li><b>Everything saves by itself.</b> If you lose signal, your work stays on this phone and uploads later.</li>
+          <li><b>Saved items upload automatically.</b> If you lose signal, they stay on this device and upload later. A batch list stays only on this device until you choose Save items.</li>
           <li><b>Nothing can be deleted.</b> Mistakes are fixed by adding a correction, so you can't break anything.</li>
           <li><b>Photograph first.</b> You can add details later.</li>
           <li><b>Use the voice button on your keyboard</b> to speak descriptions instead of typing.</li>
@@ -78,13 +79,14 @@ function UpdateBanner() {
 
 const TABS: { to: string; icon: IconName; label: string; end?: boolean }[] = [
   { to: '', icon: 'home', label: 'Home', end: true },
-  { to: 'add', icon: 'plus', label: 'Add item' },
+  { to: 'scan', icon: 'camera', label: 'Batch capture' },
   { to: 'items', icon: 'list', label: 'Inventory' },
   { to: 'decisions', icon: 'scale', label: 'Decisions' },
   { to: 'more', icon: 'more', label: 'More' },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  useEffect(() => { applyDeviceOptions(); }, []);
   const estateId = useEstateId();
   const data = useEstateData(estateId);
   const alert = useMeta<unknown>(`ledger_alert:${estateId}`, null);
@@ -92,7 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <UpdateBanner />
       <header className="safe-top sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur-sm shadow-2xs">
-        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2.5">
+        <div className="app-header mx-auto flex max-w-2xl items-center gap-2 px-4 py-2.5">
           <Link to="/estates" className="min-w-0 flex-1 truncate font-bold hover:opacity-80 transition-opacity flex items-center gap-1.5" title="Switch estate">
             <span className="truncate">{data?.estate?.name ?? 'Estate'}</span>
             <span className="text-ink-soft text-xs font-normal select-none">▾</span>
@@ -106,8 +108,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         )}
       </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">{children}</main>
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-sm shadow-md" aria-label="Main">
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <main id="main-content" className="app-main mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">{children}</main>
+      <nav className="main-nav safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-sm shadow-md" aria-label="Main">
         <ul className="mx-auto grid max-w-2xl grid-cols-5">
           {TABS.map((t) => (
             <li key={t.label}>
@@ -134,3 +137,4 @@ export function AppShell({ children }: { children: ReactNode }) {
     </div>
   );
 }
+

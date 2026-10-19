@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CATEGORIES, parseItemCode } from '../../supabase/functions/_shared/codes.ts';
 import {
@@ -13,7 +13,7 @@ import { useEstateData, useEstateId } from '../lib/hooks';
 const FILTERS: { key: string; label: string; test: (i: Item) => boolean }[] = [
   { key: 'all', label: 'All', test: () => true },
   { key: 'review', label: 'Needs review', test: (i) => ['DISCOVERED', 'NEEDS_IDENTIFICATION', 'NEEDS_VALUATION', 'NEEDS_DECISION'].includes(i.status) },
-  { key: 'info', label: 'Needs information', test: (i) => i.status === 'NEEDS_IDENTIFICATION' || i.title.startsWith('Item with barcode') },
+  { key: 'info', label: 'Needs information', test: (i) => i.status === 'NEEDS_IDENTIFICATION' || i.title.startsWith('Item with barcode') || i.title.startsWith('Unnamed item') },
   { key: 'valuable', label: 'Valuables', test: (i) => i.potentially_valuable },
   { key: 'grabs', label: 'Up for grabs', test: (i) => i.status === 'UP_FOR_GRABS' || i.status === 'CLAIM_REQUESTED' },
   { key: 'pending', label: 'Waiting for approval', test: (i) => i.status === 'APPROVAL_PENDING' },
@@ -29,6 +29,7 @@ export default function Inventory() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get('q') ?? '');
   const [limit, setLimit] = useState(100);
+  const searchTerm = useDeferredValue(q);
   const filter = params.get('filter') ?? 'all';
   const place = params.get('place') ?? '';
   const category = params.get('category') ?? '';
@@ -43,8 +44,8 @@ export default function Inventory() {
     if (!data) return [];
     const locs = byId(data.locations);
     const f = FILTERS.find((x) => x.key === filter) ?? FILTERS[0];
-    const term = q.trim().toLowerCase();
-    const code = parseItemCode(q)?.code;
+    const term = searchTerm.trim().toLowerCase();
+    const code = parseItemCode(searchTerm)?.code;
     return data.items
       .filter(isLiveItem)
       .filter(f.test)
@@ -64,16 +65,23 @@ export default function Inventory() {
         return term.split(/\s+/).every((w) => hay.includes(w));
       })
       .sort((a, b) => a.inventory_number - b.inventory_number);
-  }, [data, filter, q, place, category, status]);
+  }, [data, filter, searchTerm, place, category, status]);
 
+  const covers = useMemo(() => {
+    const result = new Map<string, NonNullable<typeof data>['media'][number]>();
+    if (!data) return result;
+    const hidden = new Set(data.redactions.map(r => r.media_id));
+    for (const media of data.media) if (media.item_id && !result.has(media.item_id) && !hidden.has(media.id) && media.mime_type.startsWith('image/')) result.set(media.item_id, media);
+    return result;
+  }, [data]);
   if (!data) return null;
   const locs = byId(data.locations);
-  const redacted = new Set(data.redactions.map((r) => r.media_id));
-  const firstPhoto = (id: string) => data.media.find((m) => m.item_id === id && !redacted.has(m.id) && m.mime_type.startsWith('image/'));
+  const firstPhoto = (id: string) => covers.get(id);
 
   return (
     <div>
-      <h1 className="mb-4">Inventory</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h1>Inventory</h1><Link className="btn btn-secondary" to={`/e/${estateId}/scan`}><Icon name="camera" size={18} /> Batch capture</Link></div>
+      <p className="workflow-hint mb-4 text-ink-soft">Use Needs information to name your photo captures. Filter by room to work through one space. Open Up for grabs to record your family choices.</p>
       <div className="relative mb-3">
         <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" />
         <label htmlFor="search" className="sr-only">Search</label>
@@ -132,7 +140,7 @@ export default function Inventory() {
         <ul className="divide-y divide-line border-y border-line">
           {results.slice(0, limit).map((i) => (
             <li key={i.id}>
-              <Link to={`/e/${estateId}/items/${i.id}`} className="flex gap-3 py-3">
+              <Link to={`/e/${estateId}/items/${i.id}`} className="inventory-row flex gap-3 py-3">
                 <Thumb media={firstPhoto(i.id)} size={68} />
                 <div className="min-w-0 flex-1">
                   <p className="font-bold leading-snug">
@@ -159,3 +167,4 @@ export default function Inventory() {
     </div>
   );
 }
+

@@ -66,3 +66,14 @@ scripts/                independent history and backup verifiers
 setup/                  computer setup and backup vault setup
 .github/workflows/      CI, deploy, nightly backup, monthly restore drill
 ```
+
+
+## Release 0.2.0
+
+- Home starts with room-by-room capture. Photograph or import many items, save unnamed records, and review later.
+- Batch retries reuse their saved record; unsaved batches show whether they are stored on this device.
+- Optional family choices use existing permissions and open/sealed rules. Reports add family responses and a beneficiary distribution summary.
+- More includes device installation help, workflow hints and compact inventory rows. Desktop layouts use side navigation.
+- [Releases and device installation](docs/RELEASES.md) covers CI, staging, production, SemVer, and eight-character deployment identities.
+
+The distributable is an installable PWA and a web app. Native app-store packages are not included.

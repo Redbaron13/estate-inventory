@@ -1,5 +1,7 @@
 import { LinkRow } from '../components/ui';
-import { APP_ENV, APP_VERSION } from '../lib/config';
+import { DeviceOptions } from '../components/DeviceOptions';
+import { InstallApp } from '../components/InstallApp';
+import { APP_ENV, APP_VERSION, DEPLOYMENT_ID } from '../lib/config';
 import { useEstateData, useEstateId, useMe, useMyMembership, useSyncState } from '../lib/hooks';
 
 export default function More() {
@@ -21,7 +23,10 @@ export default function More() {
         <LinkRow to={`${base}/family`} icon="users" title="Family and settings" detail="Members, invitations, approval rules, your profile" />
         <LinkRow to="/estates" icon="home" title="Switch estate" />
       </nav>
-      <p className="text-[0.88rem] text-ink-soft">Estate Inventory {APP_VERSION} ({APP_ENV})</p>
+      <InstallApp />
+      <DeviceOptions />
+      <p className="text-[0.88rem] text-ink-soft">Estate Inventory {APP_VERSION} ({APP_ENV})<br />Deployment: <code>{DEPLOYMENT_ID}</code></p>
     </div>
   );
 }
+

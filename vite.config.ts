@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -25,11 +25,18 @@ function previewHeaders(mode: string): Record<string, string> {
   };
 }
 
+const releasePath = new URL('./public/release.json', import.meta.url);
+const release = existsSync(releasePath) ? JSON.parse(readFileSync(releasePath, 'utf8')) : { id: 'Development', version: '0.2.0' };
+
 // The whole app (code, fonts, barcode decoder) is stored on the phone at
 // install time so it opens and works with no signal. See src/sw.ts.
 export default defineConfig(({ mode }) => ({
   // Served from a sub-path on GitHub Pages (VITE_BASE=/estate-inventory/); '/' elsewhere.
   base: process.env.VITE_BASE || '/',
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(release.version),
+    'import.meta.env.VITE_DEPLOYMENT_ID': JSON.stringify(release.id),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -40,7 +47,7 @@ export default defineConfig(({ mode }) => ({
       registerType: 'prompt',
       injectRegister: false,
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,wasm,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,wasm,webmanifest,json}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
       manifest: {
@@ -50,7 +57,9 @@ export default defineConfig(({ mode }) => ({
         start_url: '.',
         scope: '.',
         display: 'standalone',
-        orientation: 'portrait',
+        id: '.',
+        categories: ['productivity', 'utilities'],
+        prefer_related_applications: false,
         background_color: '#F2F4F1',
         theme_color: '#1D3A57',
         icons: [
@@ -71,3 +80,4 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['tests/unit/setup.ts'],
   },
 }) as never);
+

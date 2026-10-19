@@ -65,6 +65,8 @@ export interface CapturePhoto extends PreparedPhoto {
 }
 
 export interface CaptureInput {
+  /** Stable local batch row ID. Makes resuming a partially saved batch harmless. */
+  captureKey?: string;
   estateId: string;
   title: string;
   category: string;
@@ -159,12 +161,24 @@ export async function captureItem(input: CaptureInput): Promise<CaptureResult> {
     byte_size: p.byte_size, width: p.width, height: p.height, kind: p.kind,
   }));
   const result = await db.transaction('rw', ITEM_TABLES, async () => {
+    if (input.captureKey) {
+      const existing = await db.items.get(input.captureKey);
+      if (existing) {
+        if (existing.estate_id !== input.estateId) throw new Error('Capture belongs to another estate.');
+        return { kind: 'item', item: existing } as CaptureResult;
+      }
+      const draft = await db.drafts.get(input.captureKey);
+      if (draft) {
+        if (draft.estate_id !== input.estateId) throw new Error('Draft belongs to another estate.');
+        return { kind: 'draft', draftId: draft.id } as CaptureResult;
+      }
+    }
     for (const p of input.photos) await storePhotoBlobs(input.estateId, p);
     const numbers = await availableNumbersFor(input.estateId, me, device);
     const member = await db.members.get([input.estateId, me]);
     if (!numbers.length || !member?.member_code) {
       const draft: Draft = {
-        id: crypto.randomUUID(), estate_id: input.estateId, created_at: now(),
+        id: input.captureKey ?? crypto.randomUUID(), estate_id: input.estateId, created_at: now(),
         payload: { ...input, photos: undefined, duplicateChecks: undefined },
         photos, duplicate_checks: input.duplicateChecks,
       };
@@ -190,7 +204,7 @@ async function materialize(
   const estate = await db.estates.get(input.estateId);
   const placeId = input.locationId ?? input.foundLocationId ?? estate?.default_location_id ?? null;
   const item: Item = {
-    id: crypto.randomUUID(), estate_id: input.estateId, inventory_number: inventoryNumber,
+    id: input.captureKey ?? crypto.randomUUID(), estate_id: input.estateId, inventory_number: inventoryNumber,
     item_code: makeItemCode({ inventoryNumber, memberCode, foundTag: foundTag(input.foundLocationId, locations), category: input.category }),
     title: input.title.trim(), description: input.description ?? null, category: input.category, quantity: input.quantity || 1,
     condition: input.condition ?? null, barcode: input.barcode ?? null, barcode_format: input.barcode_format ?? null,
@@ -520,3 +534,4 @@ export const online = {
   updateProfile: (body: Record<string, unknown>) => api('/me', { method: 'PATCH', body, idempotencyKey: crypto.randomUUID() }),
   barcodeLookup: (value: string) => api<{ found: boolean; title?: string; brand?: string; model?: string }>(`/barcode/${encodeURIComponent(value)}`),
 };
+

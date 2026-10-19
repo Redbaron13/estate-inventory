@@ -34,3 +34,8 @@ Why the app is built the way it is. Newest decisions go at the bottom; a decisio
 | 28 | Host the app on GitHub Pages for now (supersedes the hosting part of 8) | Works with what's already connected; no extra account or token. Cost: no response headers, so the CSP isn't enforced there | Cloudflare Pages (needs an API token), Vercel (connector lacks access to the team) |
 | 29 | Default branch is `mainbranch`; CI and deploy trigger on it | Owner's directive; one branch name everywhere | Keeping `main` alongside it |
 | 30 | Estate ID is 18 characters: time hex, name slug, reverse-alphabet sequence tier, random, mod-36 check character (`estate-id.ts`); stored in `estates.estate_code`, unique | Owner-specified scheme; self-validating, no personal numbers stored | EST-YYYY-HEX8 from an SSN hash |
+
+
+| 31 | Releases use major.minor.patch plus the approved eight-character custom identifier; undeployed builds prepend ZY | Owner-confirmed format; persistent reservations prevent collision and a positional checksum catches common transcription errors | Shortened random UUIDs without a registry |
+| 32 | CI gates automatic web production releases from mainbranch and staging releases from develop; backend deploy runs before frontend when configured (supersedes 22) | Owner requested an easy live and development pipeline; production refuses backend changes when credentials are absent | Independent backend/frontend jobs that can publish an incompatible app |
+| 33 | Keep one responsive PWA as both installed and browser application for this release | Preserves offline behavior and the existing shared data model on phones and computers without introducing signing and store dependencies | Claiming native package support without producing signed packages |
