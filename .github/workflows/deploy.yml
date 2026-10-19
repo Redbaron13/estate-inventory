@@ -137,18 +137,18 @@ jobs:
         env:
           RELEASE_PREPARED: 'true'
           VITE_APP_ENV: ${{ env.TARGET }}
-      - name: Keep the exact release for download and rollback
-        uses: actions/upload-artifact@v7
-        with:
-          name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
-          path: dist/
-          retention-days: 90
       - name: Prepare GitHub Pages
         if: env.TARGET == 'production'
         run: |
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
           rm -f dist/_headers
+      - name: Keep the exact release for download and rollback
+        uses: actions/upload-artifact@v7
+        with:
+          name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
+          path: dist/
+          retention-days: 90
       - name: Publish production
         if: env.TARGET == 'production'
         uses: peaceiris/actions-gh-pages@v4
