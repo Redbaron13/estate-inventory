@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { ErrorText, Field, Notice } from '../components/ui';
-import { APP_ENV, RESET_PASSWORD_FLAG } from '../lib/config';
+import { APP_ENV } from '../lib/config';
 import { supabase } from '../lib/supabase';
 
 const isStandalone = () =>
@@ -11,7 +11,7 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'code' | 'password'>('code');
+  const [mode, setMode] = useState<'code' | 'password'>(APP_ENV === 'production' ? 'password' : 'code');
   const [step, setStep] = useState<'email' | 'verify'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -47,29 +47,9 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const isTargetUser = normalizedEmail === 'kevinbaron13@gmail.com';
-    const isTempPass = password === 'testpasswordchangeme';
-
-    let res = newAccount
+    const res = newAccount
       ? await supabase.auth.signUp({ email: email.trim(), password, options: { data: { display_name: name.trim() } } })
       : await supabase.auth.signInWithPassword({ email: email.trim(), password });
-
-    // When logging in with temporary password, if the app was redeployed with the reset password flag,
-    // restore the temporary password if previous sign-in failed, otherwise preserve user's last password.
-    if (res.error && isTargetUser && isTempPass && RESET_PASSWORD_FLAG) {
-      try {
-        const { error: rpcError } = await supabase.rpc('reset_temp_password', {
-          p_email: normalizedEmail,
-          p_temp_password: password,
-        });
-        if (!rpcError) {
-          res = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        }
-      } catch (err) {
-        console.error('Password reset hook failed:', err);
-      }
-    }
 
     setBusy(false);
     if (res.error) setError(res.error.message);
@@ -80,7 +60,7 @@ export default function SignIn() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" className="h-14 w-14 rounded-2xl shadow-sm" />
+        <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" className="h-14 w-14 rounded-2xl shadow-sm" />
         <div>
           <h1 className="text-xl font-bold tracking-tight">Estate Inventory</h1>
           <p className="text-[0.95rem] text-ink-soft">Record belongings and decide together where each one goes.</p>

@@ -1,4 +1,4 @@
-> Work in progress, 2026-10-19: release 0.2.0 is being prepared for mainbranch. See docs/RELEASES.md. Added room-first capture, resumable batch IDs, family-choice and beneficiary reports, install help, responsive navigation, and reserved deployment identities. Do not treat these as deployed until the Deploy workflow verifies the exact live release. The connected Supabase account does not expose project dszldulsyoovtnsaquay.
+> Update, 2026-10-22: PR #27 merged at 36db31a. Its CI passed, including database and responsive end-to-end tests. Production deployment stopped after migrations because the default Supabase email provider rejected custom email templates. Release 0.2.1 removes the unsafe public temporary-password reset RPC and its client fallback, adds a regression test and a hosted API absence check, and adds a narrow verified auth update, credential import from private textfile/.env, and a native Mac host with CI previews and optional signed distribution. Verify the new Deploy run before treating 0.2.1 as live. See docs/RELEASES.md and docs/MACOS.md.
 
 # Handoff: Estate Inventory
 

@@ -1,38 +1,27 @@
--- Password reset logic test: kevinbaron13@gmail.com temporary password reset
+-- Password recovery must never expose a public administrator reset function.
 begin;
 \ir _helpers.psql
-select plan(4);
+select plan(3);
 
--- Valid reset for kevinbaron13@gmail.com
 select is(
-  (select public.reset_temp_password('kevinbaron13@gmail.com', 'testpasswordchangeme') ->> 'ok'),
-  'true',
-  'reset_temp_password succeeds for kevinbaron13@gmail.com'
+  to_regprocedure('public.reset_temp_password(text,text)')::text,
+  null::text,
+  'legacy administrator reset function is absent'
 );
 
--- Verified password hash matches
-select is(
-  (select encrypted_password = extensions.crypt('testpasswordchangeme', encrypted_password)
-   from auth.users where email = 'kevinbaron13@gmail.com'),
-  true,
-  'password hash in auth.users matches testpasswordchangeme'
-);
-
--- Unauthorized email fails with EI403
+set local role anon;
 select throws_ok(
-  $$select public.reset_temp_password('otheruser@example.com', 'testpasswordchangeme')$$,
-  'EI403',
-  null,
-  'unauthorized email cannot be reset'
+  $$select public.reset_temp_password('security-check@example.invalid', 'verification-only')$$,
+  '42883', null,
+  'anonymous callers cannot invoke the retired password reset'
 );
 
--- Invalid temporary password fails with EI400
+set local role authenticated;
 select throws_ok(
-  $$select public.reset_temp_password('kevinbaron13@gmail.com', 'wrongpassword')$$,
-  'EI400',
-  null,
-  'invalid temporary password is rejected'
+  $$select public.reset_temp_password('security-check@example.invalid', 'verification-only')$$,
+  '42883', null,
+  'signed-in callers cannot invoke the retired password reset'
 );
-
+reset role;
 select * from finish();
 rollback;
