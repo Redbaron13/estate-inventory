@@ -80,7 +80,7 @@ export default function SignIn() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" className="h-14 w-14 rounded-2xl shadow-sm" />
+        <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" className="h-14 w-14 rounded-2xl shadow-sm" />
         <div>
           <h1 className="text-xl font-bold tracking-tight">Estate Inventory</h1>
           <p className="text-[0.95rem] text-ink-soft">Record belongings and decide together where each one goes.</p>

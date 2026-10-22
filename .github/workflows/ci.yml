@@ -111,3 +111,7 @@ jobs:
         if: failure()
         run: docker logs $(docker ps --format '{{.Names}}' | grep edge_runtime | head -1) 2>&1 | tail -200
 
+
+  macos:
+    name: Mac application
+    uses: ./.github/workflows/macos.yml

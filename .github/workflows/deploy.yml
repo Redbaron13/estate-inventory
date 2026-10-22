@@ -133,7 +133,6 @@ jobs:
           supabase db push --dry-run --password "$DB_PASSWORD"
           supabase db push --yes --password "$DB_PASSWORD"
           node scripts/configure-deploy.mjs
-          supabase config push --project-ref "$PROJECT_REF" --yes
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
@@ -185,3 +184,11 @@ jobs:
             echo "- Install: open More > Install on this device"
             echo "- Exact release manifest and API health verified"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  macos-release:
+    if: ${{ inputs.target == 'production' || (github.event_name == 'push' && github.ref_name == 'mainbranch') }}
+    needs: [ci, release]
+    uses: ./.github/workflows/macos-release.yml
+    secrets: inherit
+    permissions:
+      contents: write

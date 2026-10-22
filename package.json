@@ -1,7 +1,7 @@
 {
   "name": "estate-inventory",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Offline-first PWA for families to inventory and fairly distribute a loved one's personal property.",
   "type": "module",
   "engines": {
@@ -27,7 +27,7 @@
     "verify:backup": "node scripts/verify-backup.mjs",
     "check": "npm run test:release && npm run lint && npm run typecheck && npm run test",
     "prebuild": "node scripts/build-metadata.mjs",
-    "test:release": "node --test tests/release-id.test.mjs",
+    "test:release": "node --test tests/*.test.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
     "predev": "node scripts/prepare-release.mjs"
   },

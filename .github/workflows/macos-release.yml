@@ -1,0 +1,111 @@
+name: Signed Mac release
+on:
+  workflow_call:
+    secrets:
+      APPLE_CERTIFICATE_P12_BASE64:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_APP_SPECIFIC_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    environment: github-pages
+    # Share the web allocator's lock; each architecture reserves separately.
+    concurrency:
+      group: release-registry
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check signing configuration
+        id: signing
+        env:
+          PUBLISH: 'true'
+        run: |
+          ready=true
+          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || ready=false
+          done
+          [ "$PUBLISH" = true ] || ready=false
+          if [ "$ready" = true ]; then
+            [ "$GITHUB_REF_NAME" = mainbranch ] || { echo 'Signed releases require mainbranch.'; exit 1; }
+          elif [ "$PUBLISH" = true ]; then
+            echo '::notice::Mac signing credentials are incomplete. CI previews are available; no signed Mac release will be published.'
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Test native navigation boundaries
+        run: swift test --package-path native/macos
+      - name: Import Developer ID certificate into an ephemeral keychain
+        if: steps.signing.outputs.ready == 'true'
+        run: |
+          keychain="$RUNNER_TEMP/estate-signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Reserve, sign and notarize Mac releases
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          RELEASE_ENV: production
+          RELEASE_DISTRIBUTION: MC
+        run: |
+          set -euo pipefail
+          mkdir -p dist/releases
+          for arch in arm64 x86_64; do
+            if [ "$arch" = arm64 ]; then export RELEASE_ARCHITECTURE=x1; else export RELEASE_ARCHITECTURE=x6; fi
+            export RELEASE_KEY="$GITHUB_RUN_ID:production:MC:$RELEASE_ARCHITECTURE"
+            node scripts/reserve-release.mjs
+            RELEASE_PREPARED=true ./script/build_and_run.sh --release --build-only --arch "$arch"
+            app="dist/macos/$arch/Estate Inventory.app"
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$app"
+            codesign --verify --deep --strict "$app"
+            ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
+            xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$app"
+            spctl --assess --type execute --verbose "$app"
+            id="$(node -p 'JSON.parse(require("fs").readFileSync("public/release.json")).id')"
+            version="$(node -p 'require("./package.json").version')"
+            ditto -c -k --keepParent "$app" "dist/releases/Estate-Inventory-$version-$id.zip"
+          done
+          shasum -a 256 dist/releases/*.zip > dist/releases/SHA256SUMS.txt
+      - name: Publish verified Mac downloads
+        if: steps.signing.outputs.ready == 'true'
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          tag="macos-v$version"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Estate Inventory for Mac $version" --notes 'Developer ID signed and notarized. Download the ZIP matching your Mac architecture, unzip, and move the app to Applications. The inventory screens update from the live website. See docs/MACOS.md.'
+          fi
+          gh release upload "$tag" dist/releases/*
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/estate-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/notarize.zip"

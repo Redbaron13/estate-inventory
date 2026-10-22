@@ -1,0 +1,35 @@
+name: Mac application
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test native navigation boundaries
+        run: swift test --package-path native/macos
+      - name: Build both Mac architectures
+        run: |
+          ./script/build_and_run.sh --build-only --arch arm64
+          ./script/build_and_run.sh --build-only --arch x86_64
+          mkdir -p dist/previews
+          for arch in arm64 x86_64; do
+            ditto -c -k --keepParent "dist/macos/$arch/Estate Inventory.app" "dist/previews/Estate-Inventory-development-$arch.zip"
+          done
+      - name: Launch and verify the native window
+        run: ./script/build_and_run.sh --verify
+      - name: Keep native preview and screenshot
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-development-${{ github.sha }}
+          path: |
+            dist/previews/
+            test-results/macos/
+          retention-days: 14

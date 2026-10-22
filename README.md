@@ -77,3 +77,7 @@ setup/                  computer setup and backup vault setup
 - [Releases and device installation](docs/RELEASES.md) covers CI, staging, production, SemVer, and eight-character deployment identities.
 
 The distributable is an installable PWA and a web app. Native app-store packages are not included.
+
+## Mac app and private deployment setup
+
+See [Mac app](docs/MACOS.md) for native builds and signed distribution. Keep deployment credentials in the ignored `textfile/.env`; [credential setup](textfile/README.md) explains the import command. Browser and mobile installations continue to use the responsive PWA.
