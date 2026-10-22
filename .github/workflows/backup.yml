@@ -32,8 +32,8 @@ permissions:
   contents: read
 
 jobs:
-  # Until any backup secret exists, the backup is skipped with a notice. Once
-  # setup has started, a missing piece fails loudly (and GitHub emails you).
+  # A missing setting fails the run with a summary naming it, so an unconfigured
+  # backup can never pass as a success (and GitHub emails you).
   check:
     runs-on: ubuntu-24.04
     outputs:
@@ -56,17 +56,26 @@ jobs:
           F: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           G: ${{ secrets.PROD_STORAGE_S3_ACCESS_KEY_ID }}
           H: ${{ secrets.PROD_STORAGE_S3_SECRET_ACCESS_KEY }}
+          I: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          set_count=0
-          for v in A B C D E F G H; do [ -n "${!v}" ] && set_count=$((set_count + 1)); done
-          if [ "$set_count" -eq 0 ]; then
-            echo "::notice::Backups are not set up yet. See docs/RUNBOOK.md, 'One-time production setup'."
+          set_count=0; missing=""
+          names=(x PROD_SUPABASE_DB_URL PROD_SUPABASE_URL PROD_SUPABASE_PROJECT_REF BACKUP_AGE_RECIPIENT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY PROD_STORAGE_S3_ACCESS_KEY_ID PROD_STORAGE_S3_SECRET_ACCESS_KEY CLOUDFLARE_ACCOUNT_ID)
+          i=0
+          for v in A B C D E F G H I; do
+            i=$((i + 1))
+            if [ -n "${!v}" ]; then set_count=$((set_count + 1)); else missing="$missing ${names[$i]}"; fi
+          done
+          if [ "$set_count" -lt 9 ]; then
+            {
+              echo "### Backup NOT RUN: missing configuration"
+              echo "No backup was made. $set_count of 9 settings are present. Missing:$missing"
+              echo "See docs/RUNBOOK.md, 'One-time production setup'."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Backup did not run. Missing configuration:$missing. See docs/RUNBOOK.md."
             echo "ready=false" >> "$GITHUB_OUTPUT"
-          elif [ "$set_count" -lt 8 ]; then
-            echo "::error::Backup setup is incomplete ($set_count of 8 settings present). See docs/RUNBOOK.md."; exit 1
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
   backup:
     needs: check
@@ -171,3 +180,13 @@ jobs:
       - name: Keep the free-tier project active
         if: always()
         run: curl -fsS "$SUPABASE_URL/functions/v1/api/v1/health" || true
+
+      - name: Summarize the result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### Backup SUCCEEDED" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Backup FAILED (${{ job.status }})" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Backup failed. Check the steps above."
+          fi
