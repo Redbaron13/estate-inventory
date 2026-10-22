@@ -70,6 +70,6 @@ References: [Supabase environments](https://supabase.com/docs/guides/deployment/
 
 ## Release 0.2.1
 
-The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Password sign-in remains available; delivering email codes to siblings still needs custom SMTP.
+The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Production opens the password sign-in form first; delivering email codes to siblings still needs custom SMTP.
 
 Mac build, native launch verification and optional signed downloads are documented in `MACOS.md`. Deployment credentials can be imported from the private `textfile/.env` with `scripts/import-deploy-secrets.mjs`; values are sent to GitHub secrets through standard input and are not printed or added to Vite.

@@ -106,10 +106,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         status.stringValue = "Your inventory"
         guard verifyDirectory != nil else { return }
-        webView.evaluateJavaScript("document.title + '\\n' + document.body.innerText") { [weak self] result, error in
-            guard let self else { return }
-            if error != nil || !(result as? String ?? "").contains("Estate Inventory") { self.finishVerification(error: "Inventory content was missing."); return }
-            self.webView.takeSnapshot(with: nil) { image, error in
+        verifyLoadedContent()
+    }
+    private func verifyLoadedContent(attempt: Int = 0) {
+        // A document title also exists while React is showing its loading screen.
+        // Require the actual signed-out form and loaded fonts before capturing.
+        let ready = "document.querySelector('h1')?.textContent.trim() === 'Estate Inventory' && !!document.querySelector('input[type=email]') && document.fonts.status === 'loaded'"
+        webView.evaluateJavaScript(ready) { [weak self] result, _ in
+            guard let self, !self.verificationFinished else { return }
+            guard result as? Bool == true else {
+                if attempt < 80 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.verifyLoadedContent(attempt: attempt + 1) }
+                } else { self.finishVerification(error: "The sign-in form did not render.") }
+                return
+            }
+            let config = WKSnapshotConfiguration()
+            config.afterScreenUpdates = true
+            self.webView.takeSnapshot(with: config) { image, error in
                 guard let image, let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]), let directory = self.verifyDirectory else { self.finishVerification(error: "Could not capture the app window."); return }
                 do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true); try png.write(to: directory.appendingPathComponent("macos.png")); self.finishVerification(error: error?.localizedDescription) }
                 catch { self.finishVerification(error: "Could not write verification image.") }

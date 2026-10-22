@@ -11,7 +11,7 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'code' | 'password'>('code');
+  const [mode, setMode] = useState<'code' | 'password'>(APP_ENV === 'production' ? 'password' : 'code');
   const [step, setStep] = useState<'email' | 'verify'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
