@@ -100,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        guard let url = navigationResponse.response.url,
+              NavigationPolicy.isAppURL(url) || (NavigationPolicy.isDownload(url) && webView.url.map(NavigationPolicy.isAppURL) == true) else {
+            decisionHandler(.cancel)
+            return
+        }
         decisionHandler(navigationResponse.canShowMIMEType ? .allow : .download)
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { status.stringValue = "Opening your inventory…" }
