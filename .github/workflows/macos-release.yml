@@ -94,16 +94,20 @@ jobs:
             version="$(node -p 'require("./package.json").version')"
             ditto -c -k --keepParent "$app" "dist/releases/Estate-Inventory-$version-$id.zip"
           done
-          shasum -a 256 dist/releases/*.zip > dist/releases/SHA256SUMS.txt
+          (cd dist/releases && shasum -a 256 *.zip > SHA256SUMS.txt)
       - name: Publish verified Mac downloads
         if: steps.signing.outputs.ready == 'true'
         run: |
           version="$(node -p 'require("./package.json").version')"
-          tag="macos-v$version"
+          release_id="$(node -p 'JSON.parse(require("fs").readFileSync("public/release.json")).id')"
+          tag="macos-v$version-$release_id"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "Estate Inventory for Mac $version" --notes 'Developer ID signed and notarized. Download the ZIP matching your Mac architecture, unzip, and move the app to Applications. The inventory screens update from the live website. See docs/MACOS.md.'
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Estate Inventory for Mac $version" --notes 'Developer ID signed and notarized. Download the ZIP matching your Mac architecture, unzip, and move the app to Applications. The inventory screens update from the live website. See docs/MACOS.md.'
           fi
-          gh release upload "$tag" dist/releases/*
+          published_commit="$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)"
+          [ "$published_commit" = "$GITHUB_SHA" ] || { echo 'Release tag points to another commit.'; exit 1; }
+          gh release upload "$tag" dist/releases/* --clobber
+          gh release edit "$tag" --draft=false
       - name: Remove signing material
         if: always()
         run: |
