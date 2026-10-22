@@ -77,3 +77,7 @@ GitHub CI runs Playwright through the runner's installed stable Chrome channel. 
 The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Production opens the password sign-in form first; delivering email codes to siblings still needs custom SMTP.
 
 Mac build, native launch verification and optional signed downloads are documented in `MACOS.md`. Deployment credentials can be imported from the private `textfile/.env` with `scripts/import-deploy-secrets.mjs`; values are sent to GitHub secrets through standard input and are not printed or added to Vite.
+
+## Release 0.2.2
+
+The floating batch Save panel has an opaque background and border so its hint text stays readable while scrolling. On desktop it sits closer to the bottom of the window. The local-save message now refers to the items in the batch without implying they are below the message.
