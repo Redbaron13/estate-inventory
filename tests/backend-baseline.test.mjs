@@ -8,7 +8,7 @@ test('backend compatibility uses a valid live commit and fails closed on unavail
     assert.equal(url.pathname, '/estate-inventory/release.json');
     return { ok: true, status: 200, json: async () => ({ commit: sha }) };
   }), sha);
-  assert.equal(await publishedCommit('https://app.example/', async () => ({ status: 404 })), null);
+  await assert.rejects(publishedCommit('https://app.example/', async () => ({ status: 404 })), /manifest is missing/);
   await assert.rejects(publishedCommit('https://app.example/', async () => ({ status: 500 })), /Cannot verify/);
   await assert.rejects(publishedCommit('https://app.example/', async () => ({ ok: true, status: 200, json: async () => ({ commit: 'bad' }) })), /valid source commit/);
 });
