@@ -1,16 +1,23 @@
 import { execFileSync } from 'node:child_process';
-const repo = process.env.GITHUB_REPOSITORY;
-let baseline;
-try {
-  const stored = JSON.parse(execFileSync('gh', ['api', `repos/${repo}/contents/release.json?ref=gh-pages`], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }));
-  const release = JSON.parse(Buffer.from(stored.content, 'base64').toString('utf8'));
+import { pathToFileURL } from 'node:url';
+
+export async function publishedCommit(site, request = fetch) {
+  const base = new URL(site.endsWith('/') ? site : `${site}/`);
+  if (base.protocol !== 'https:' || base.username || base.password) throw new Error('Hosted site must use HTTPS.');
+  const url = new URL('release.json', base);
+  url.searchParams.set('check', process.env.GITHUB_RUN_ID || String(Date.now()));
+  const response = await request(url, { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Cannot verify the published backend baseline (HTTP ${response.status}).`);
+  const release = await response.json();
   if (!/^[a-f0-9]{40}$/.test(release.commit)) throw new Error('Published release has no valid source commit.');
-  baseline = release.commit;
-} catch (e) {
-  if (!String(e.stderr).includes('404')) throw e;
-  // Bootstrap only: old deployments did not contain a release manifest.
-  baseline = process.env.BEFORE && !/^0+$/.test(process.env.BEFORE) ? process.env.BEFORE : 'HEAD^';
+  return release.commit;
 }
-const changed = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'supabase/'], { encoding: 'utf8' }).trim();
-if (changed) throw new Error(`Backend files changed since ${baseline}, but Supabase deployment credentials are missing. Refusing a partial release.\n${changed}`);
-console.log(`Backend unchanged since ${baseline}. Existing API can serve this frontend release.`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // The live manifest is authoritative for artifact deployments. gh-pages can
+  // contain a failed or obsolete branch build and is not a deployment record.
+  const baseline = await publishedCommit(process.env.SITE_URL) || (process.env.BEFORE && !/^0+$/.test(process.env.BEFORE) ? process.env.BEFORE : 'HEAD^');
+  const changed = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'supabase/'], { encoding: 'utf8' }).trim();
+  if (changed) throw new Error(`Backend files changed since ${baseline}, but Supabase deployment credentials are missing. Refusing a partial release.\n${changed}`);
+  console.log(`Backend unchanged since ${baseline}. Existing API can serve this frontend release.`);
+}

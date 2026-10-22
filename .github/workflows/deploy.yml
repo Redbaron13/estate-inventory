@@ -30,6 +30,7 @@ jobs:
     permissions:
       contents: write
       pages: write
+      id-token: write
     # Allocation is serialized across environments because both share the registry.
     concurrency:
       group: release-registry
@@ -92,7 +93,7 @@ jobs:
           if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_REF" ] && [ -n "$DB_PASSWORD" ]; then
             deploy_backend=true
           else
-            node scripts/check-backend-deploy.mjs
+            SITE_URL="$SITE_URL" node scripts/check-backend-deploy.mjs
             echo '::notice::Frontend release. Backend credentials are not configured; existing API remains in use.'
           fi
           echo "backend=$deploy_backend" >> "$GITHUB_OUTPUT"
@@ -151,17 +152,15 @@ jobs:
           name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
           path: dist/
           retention-days: 90
-      - name: Publish production
+      - name: Upload the production Pages artifact
         if: env.TARGET == 'production'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/upload-pages-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
-          publish_branch: gh-pages
-          force_orphan: true
-          user_name: Kevin Baron
-          user_email: 98280733+Redbaron13@users.noreply.github.com
-          commit_message: Release ${{ steps.identity.outputs.version }} ${{ steps.identity.outputs.id }}
+          path: dist/
+      - name: Publish production from the approved source branch
+        if: env.TARGET == 'production'
+        id: deployment
+        uses: actions/deploy-pages@v4
       - name: Publish staging
         if: env.TARGET == 'staging'
         run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch staging --commit-hash "$GITHUB_SHA" --commit-dirty=true

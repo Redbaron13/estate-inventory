@@ -22,7 +22,7 @@ Production always uses `mainbranch`. Manual production deploys require typing `p
 
 ## Required environment configuration
 
-Production remains on the existing GitHub Pages `gh-pages` branch. Public client values fall back to `.env.hosted` and are safe in a browser. Secret credentials never enter Vite client variables.
+Production uses a Pages artifact deployed directly from the protected `mainbranch` environment. The old `gh-pages` publishing branch is no longer updated. Public client values fall back to `.env.hosted` and are safe in a browser. Secret credentials never enter Vite client variables.
 
 | Location | Name | Purpose |
 | --- | --- | --- |
@@ -81,3 +81,5 @@ Mac build, native launch verification and optional signed downloads are document
 ## Release 0.2.2
 
 The floating batch Save panel has an opaque background and border so its hint text stays readable while scrolling. On desktop it sits closer to the bottom of the window. The local-save message now refers to the items in the batch without implying they are below the message.
+
+Production uses the official Pages artifact actions with `pages: write` and job-scoped `id-token: write`. The deploy originates from approved `mainbranch`; it does not relax the environment rules to permit `gh-pages`. Backend compatibility checks read the live release manifest so an obsolete or failed publishing branch cannot become the baseline.
