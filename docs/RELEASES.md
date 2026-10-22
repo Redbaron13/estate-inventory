@@ -70,6 +70,8 @@ References: [Supabase environments](https://supabase.com/docs/guides/deployment/
 
 ## Release 0.2.1
 
+This release retires the legacy public temporary-password RPC and removes its client fallback. A forward migration drops the function, database tests check anonymous and authenticated callers cannot invoke it, and deployment verifies the public API reports it missing before publishing. The administrator must change the old temporary password through the normal account settings. Account confirmation email supports both a code and a confirmation link when custom SMTP is configured.
+
 GitHub CI runs Playwright through the runner's installed stable Chrome channel. It runs the same desktop, tablet, phone and offline-sync tests without downloading another browser or installing system packages on each run. Local tests keep using Playwright Chromium unless `PLAYWRIGHT_CHANNEL` is set.
 
 The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Production opens the password sign-in form first; delivering email codes to siblings still needs custom SMTP.

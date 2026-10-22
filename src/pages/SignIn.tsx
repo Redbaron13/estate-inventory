@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { ErrorText, Field, Notice } from '../components/ui';
-import { APP_ENV, RESET_PASSWORD_FLAG } from '../lib/config';
+import { APP_ENV } from '../lib/config';
 import { supabase } from '../lib/supabase';
 
 const isStandalone = () =>
@@ -47,29 +47,9 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const isTargetUser = normalizedEmail === 'kevinbaron13@gmail.com';
-    const isTempPass = password === 'testpasswordchangeme';
-
-    let res = newAccount
+    const res = newAccount
       ? await supabase.auth.signUp({ email: email.trim(), password, options: { data: { display_name: name.trim() } } })
       : await supabase.auth.signInWithPassword({ email: email.trim(), password });
-
-    // When logging in with temporary password, if the app was redeployed with the reset password flag,
-    // restore the temporary password if previous sign-in failed, otherwise preserve user's last password.
-    if (res.error && isTargetUser && isTempPass && RESET_PASSWORD_FLAG) {
-      try {
-        const { error: rpcError } = await supabase.rpc('reset_temp_password', {
-          p_email: normalizedEmail,
-          p_temp_password: password,
-        });
-        if (!rpcError) {
-          res = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        }
-      } catch (err) {
-        console.error('Password reset hook failed:', err);
-      }
-    }
 
     setBusy(false);
     if (res.error) setError(res.error.message);

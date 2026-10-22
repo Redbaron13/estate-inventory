@@ -3,16 +3,17 @@ import { pathToFileURL } from 'node:url';
 
 // A full CLI config push inherits local test settings and attempts template
 // changes rejected by the default sender. Patch only the app-owned settings.
-export function authPatch(current, site, template) {
+export function authPatch(current, site, template, confirmationTemplate) {
   const url = new URL(site);
   if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Hosted site must use HTTPS.');
   const redirects = new Set(String(current.uri_allow_list || '').split(',').filter(Boolean));
   redirects.add(url.href);
   const patch = { site_url: url.href, uri_allow_list: [...redirects].join(','), mailer_otp_length: 6, mailer_otp_exp: 900 };
   if (current.smtp_host) {
+    if (!confirmationTemplate?.includes('{{ .ConfirmationURL }}')) throw new Error('Account confirmation requires a confirmation link.');
     for (const kind of ['magic_link', 'confirmation']) {
-      patch[`mailer_subjects_${kind}`] = 'Your Estate Inventory sign-in code';
-      patch[`mailer_templates_${kind}_content`] = template;
+      patch[`mailer_subjects_${kind}`] = kind === 'confirmation' ? 'Confirm your Estate Inventory account' : 'Your Estate Inventory sign-in code';
+      patch[`mailer_templates_${kind}_content`] = kind === 'confirmation' ? confirmationTemplate : template;
     }
   }
   return patch;
@@ -30,7 +31,7 @@ export async function configureAuth(env = process.env, request = fetch) {
     return result.json();
   }
   const current = await call('GET');
-  const patch = authPatch(current, env.SITE_URL, readFileSync('supabase/templates/sign-in-code.html', 'utf8'));
+  const patch = authPatch(current, env.SITE_URL, readFileSync('supabase/templates/sign-in-code.html', 'utf8'), readFileSync('supabase/templates/confirm-account.html', 'utf8'));
   await call('PATCH', patch);
   const verified = await call('GET');
   for (const [key, value] of Object.entries(patch)) {

@@ -136,6 +136,9 @@ jobs:
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
+      - name: Verify the retired administrator reset RPC is absent
+        if: steps.config.outputs.backend == 'true'
+        run: node scripts/verify-auth-boundary.mjs
       - name: Prepare GitHub Pages
         if: env.TARGET == 'production'
         run: |
