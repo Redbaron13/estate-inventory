@@ -12,6 +12,7 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    channel: process.env.PLAYWRIGHT_CHANNEL,
     launchOptions: process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : undefined,
   },
   workers: 1,

@@ -70,6 +70,8 @@ References: [Supabase environments](https://supabase.com/docs/guides/deployment/
 
 ## Release 0.2.1
 
+GitHub CI runs Playwright through the runner's installed stable Chrome channel. It runs the same desktop, tablet, phone and offline-sync tests without downloading another browser or installing system packages on each run. Local tests keep using Playwright Chromium unless `PLAYWRIGHT_CHANNEL` is set.
+
 The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Production opens the password sign-in form first; delivering email codes to siblings still needs custom SMTP.
 
 Mac build, native launch verification and optional signed downloads are documented in `MACOS.md`. Deployment credentials can be imported from the private `textfile/.env` with `scripts/import-deploy-secrets.mjs`; values are sent to GitHub secrets through standard input and are not printed or added to Vite.

@@ -57,6 +57,10 @@ jobs:
     name: Database and end-to-end tests
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # GitHub's image includes stable Chrome and its system dependencies.
+      # Use Playwright's supported channel instead of an unbounded fresh install.
+      PLAYWRIGHT_CHANNEL: chrome
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
@@ -82,8 +86,8 @@ jobs:
             echo "VITE_APP_ENV=ci"
           } > .env.local
           npm run build
-      - name: Install browser
-        run: npx playwright install --with-deps chromium
+      - name: Check the runner browser
+        run: google-chrome --version
       - name: Phone end-to-end tests
         run: |
           npx vite preview --port 4173 --host 127.0.0.1 &
