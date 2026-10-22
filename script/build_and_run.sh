@@ -42,12 +42,12 @@ import json, os, plistlib
 from pathlib import Path
 r=json.loads(Path('public/release.json').read_text())
 bundle='io.github.redbaron13.estate-inventory' + ('.development' if r['id'].startswith('ZY') else '')
-info={'CFBundleExecutable':'EstateInventory','CFBundleIdentifier':bundle,'CFBundleName':'Estate Inventory','CFBundleDisplayName':'Estate Inventory','CFBundlePackageType':'APPL','CFBundleShortVersionString':r['version'],'CFBundleVersion':os.environ.get('GITHUB_RUN_NUMBER','1'),'EstateReleaseID':r['id'],'LSMinimumSystemVersion':'13.0','NSPrincipalClass':'NSApplication','NSHighResolutionCapable':True,'NSCameraUsageDescription':'Photograph estate items and scan their labels.','NSMicrophoneUsageDescription':'Only used if you allow microphone access while capturing media.','WKAppBoundDomains':['redbaron13.github.io']}
+info={'CFBundleExecutable':'EstateInventory','CFBundleIdentifier':bundle,'CFBundleName':'Estate Inventory','CFBundleDisplayName':'Estate Inventory','CFBundlePackageType':'APPL','CFBundleShortVersionString':r['version'],'CFBundleVersion':os.environ.get('GITHUB_RUN_NUMBER','1'),'EstateReleaseID':r['id'],'LSMinimumSystemVersion':'13.0','NSPrincipalClass':'NSApplication','NSHighResolutionCapable':True,'NSCameraUsageDescription':'Photograph estate items and scan their labels.','WKAppBoundDomains':['redbaron13.github.io']}
 Path(os.environ['MAC_BUNDLE_PATH'],'Contents','Info.plist').write_bytes(plistlib.dumps(info))
 PY
 # Local and CI previews receive an ad hoc signature. The release workflow
 # replaces it with a Developer ID signature before notarization.
-codesign --force --sign - "$app"
+codesign --force --sign - --entitlements native/macos/Entitlements.plist "$app"
 plutil -lint "$app/Contents/Info.plist"
 codesign --verify --deep --strict "$app"
 if [ "$launch" = true ]; then

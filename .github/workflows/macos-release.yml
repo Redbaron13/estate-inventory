@@ -84,7 +84,7 @@ jobs:
             node scripts/reserve-release.mjs
             RELEASE_PREPARED=true ./script/build_and_run.sh --release --build-only --arch "$arch"
             app="dist/macos/$arch/Estate Inventory.app"
-            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$app"
+            codesign --force --options runtime --timestamp --entitlements native/macos/Entitlements.plist --sign "$APPLE_SIGNING_IDENTITY" "$app"
             codesign --verify --deep --strict "$app"
             ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
             xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
