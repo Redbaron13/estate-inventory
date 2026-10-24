@@ -7,10 +7,10 @@ Operating the production app: one-time setup, backups, restore, and what to do w
 | Thing | Where | Notes |
 | --- | --- | --- |
 | Database, sign-in, photos, API | Supabase project `estate-inventory` (`dszldulsyoovtnsaquay`, US East, Postgres 17) | Created through the Vercel Marketplace integration, so plan changes and billing go through Vercel |
-| App | GitHub Pages, `gh-pages` branch: https://redbaron13.github.io/estate-inventory/ (Cloudflare Pages optional, via Deploy to production) | Static files only; no data. Published by the `pages` job in deploy.yml after CI passes |
+| App | GitHub Pages artifact from protected `mainbranch`: https://redbaron13.github.io/estate-inventory/ | Static files only; no data. Published by the `release` job in deploy.yml after CI and backend verification pass |
 | API function | Supabase function `api`, deployed from a pinned GitHub commit | To update outside the pipeline, redeploy with the new commit hash in its one-line entry file |
 | Backup vault | Cloudflare R2 bucket `estate-inventory-vault` (western North America) | Locked prefixes; see "Backups" |
-| Code, pipeline, backup jobs | GitHub `Redbaron13/estate-inventory` (private) | |
+| Code, pipeline, backup jobs | GitHub `Redbaron13/estate-inventory` (public) | |
 | Backup decryption key | Offline: password manager plus a printed copy | Also a GitHub secret for the monthly drill |
 
 ## One-time production setup
@@ -25,7 +25,7 @@ Do these in order. Each step says what it unlocks.
 6. **Cloudflare.** Create an API token (My Profile > API Tokens > "Edit Cloudflare Workers" template, limited to your account) and save it as `CLOUDFLARE_API_TOKEN`; save the account ID as `CLOUDFLARE_ACCOUNT_ID`. Use the account you want billing on; you have two.
 7. **Backup vault.** On your computer: `npx wrangler login`, then `CLOUDFLARE_ACCOUNT_ID=<id> node setup/r2-setup.mjs` (PowerShell: `$env:CLOUDFLARE_ACCOUNT_ID='<id>'; node setup/r2-setup.mjs`). If R2 isn't enabled yet, the dashboard asks you to enable it first (free tier, card on file). Then create the R2 token as the script prints and save `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
 8. **Backup encryption key.** See below. Saves `BACKUP_AGE_RECIPIENT` (variable) and `BACKUP_AGE_IDENTITY` (secret).
-9. **First deploy.** Add `PROD_SUPABASE_PROJECT_REF`, `PROD_SUPABASE_URL`, `PROD_SUPABASE_ANON_KEY`, `PROD_SITE_URL`, then Actions > Deploy > production. The first run creates the Pages project; if the site address it reports differs from `PROD_SITE_URL`, update the secret and run it again.
+9. **First deploy.** Configure `SUPABASE_ACCESS_TOKEN`, `PROD_SUPABASE_PROJECT_REF`, `PROD_SUPABASE_DB_PASSWORD`, `PROD_SUPABASE_URL` and `PROD_SUPABASE_ANON_KEY`. Run Actions > Deploy from `mainbranch`, choose production and type production in the confirmation input, or merge a versioned update into mainbranch. The existing Pages site receives the verified build through the official artifact actions from the approved branch. Keep the environment protection rules. A missing live manifest requires backend credentials for bootstrap; there is no push-range fallback. See `RELEASES.md` for staging and release IDs.
 10. **First backup.** Actions > Backup > Run workflow. Check the run summary lists a database file and the media count. Then Actions > Restore drill > Run workflow to prove you can get it back.
 11. **Supabase plan.** The free plan pauses a project after 7 days without activity (the nightly backup's health check counts as activity) and keeps no backups of its own. The R2 vault covers backups either way. Upgrading to Pro ($25/month, through Vercel) adds daily Supabase backups and removes pausing; worth doing before the family starts entering real items.
 
