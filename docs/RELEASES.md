@@ -14,7 +14,7 @@ This release distributes a browser-runtime PWA (WBx3), including when installed.
 2. Open a PR. CI runs lint, TypeScript, unit and identifier tests, a production build, API type checking, database/permission tests, independent history verification, and desktop/tablet/phone browser tests.
 3. Merge into `develop` for staging. This runs the same CI, then applies forward migrations and the API to a separate staging Supabase project before publishing to Cloudflare Pages' `staging` branch. Incomplete staging configuration fails clearly.
 4. Increase package version with `npm version patch`, `minor`, or `major` as appropriate. Commit package.json and package-lock.json together.
-5. Merge into `mainbranch`. CI gates a production release to the existing GitHub Pages site. With Supabase credentials, migrations and API deploy first. Without credentials, frontend-only updates may deploy; changes to `supabase/` since the last published release are refused to prevent a partial release. For the first release only, when no previous release manifest exists, the check uses the push range or HEAD^ for a manual run. Later releases compare against the last published source commit, including changes from failed runs.
+5. Merge into `mainbranch`. CI gates a production release to the existing GitHub Pages site. With Supabase credentials, migrations and API deploy first. Without credentials, frontend-only updates may deploy; changes to `supabase/` since the last published release are refused to prevent a partial release. Frontend-only releases require a valid live release manifest. Missing or invalid metadata stops deployment; configure backend credentials for the first release. Later releases compare against the live source commit, including changes from failed runs.
 6. Each deployment reserves its identity and builds before any backend mutation, then saves the exact build as an Actions artifact, publishes, and verifies `release.json` contains this deployment's ID and commit. It also verifies API health. A successful HTTP response from an old site does not count as success.
 7. Installed apps offer an update prompt. Finish current capture before restarting. IndexedDB and the outbox remain across releases.
 
@@ -22,7 +22,7 @@ Production always uses `mainbranch`. Manual production deploys require typing `p
 
 ## Required environment configuration
 
-Production remains on the existing GitHub Pages `gh-pages` branch. Public client values fall back to `.env.hosted` and are safe in a browser. Secret credentials never enter Vite client variables.
+Production uses a Pages artifact deployed directly from the protected `mainbranch` environment. The old `gh-pages` publishing branch is no longer updated. Public client values fall back to `.env.hosted` and are safe in a browser. Secret credentials never enter Vite client variables.
 
 | Location | Name | Purpose |
 | --- | --- | --- |
@@ -77,3 +77,9 @@ GitHub CI runs Playwright through the runner's installed stable Chrome channel. 
 The production pipeline now updates only app-owned hosted auth settings through the Management API, reads them back to verify them, and preserves the project's confirmation and SMTP settings. It installs code email templates only when a custom SMTP host is configured. The built-in sender's template restriction no longer blocks database, API and web releases. Production opens the password sign-in form first; delivering email codes to siblings still needs custom SMTP.
 
 Mac build, native launch verification and optional signed downloads are documented in `MACOS.md`. Deployment credentials can be imported from the private `textfile/.env` with `scripts/import-deploy-secrets.mjs`; values are sent to GitHub secrets through standard input and are not printed or added to Vite.
+
+## Release 0.2.2
+
+The floating batch Save panel has an opaque background and border so its hint text stays readable while scrolling. On desktop it sits closer to the bottom of the window. The local-save message now refers to the items in the batch without implying they are below the message.
+
+Production uses the official Pages artifact actions with `pages: write` and job-scoped `id-token: write`. The deploy originates from approved `mainbranch`; it does not relax the environment rules to permit `gh-pages`. Backend compatibility checks read the live release manifest so an obsolete or failed publishing branch cannot become the baseline.

@@ -1,8 +1,8 @@
-> Update, 2026-10-22: PR #27 merged at 36db31a. Its CI passed, including database and responsive end-to-end tests. Production deployment stopped after migrations because the default Supabase email provider rejected custom email templates. Release 0.2.1 removes the unsafe public temporary-password reset RPC and its client fallback, adds a regression test and a hosted API absence check, and adds a narrow verified auth update, credential import from private textfile/.env, and a native Mac host with CI previews and optional signed distribution. Verify the new Deploy run before treating 0.2.1 as live. See docs/RELEASES.md and docs/MACOS.md.
+> Update, 2026-10-22: PR #27 merged at 36db31a. Its CI passed, including database and responsive end-to-end tests. Production deployment stopped after migrations because the default Supabase email provider rejected custom email templates. Release 0.2.1 removes the unsafe public temporary-password reset RPC and its client fallback, adds a regression test and a hosted API absence check, and adds a narrow verified auth update, credential import from private textfile/.env, and a native Mac host with CI previews and optional signed distribution. Verify the new Deploy run before treating 0.2.1 as live. Release 0.2.2 deploys a Pages artifact directly from approved mainbranch rather than the blocked gh-pages branch, and fixes the batch Save panel background. See docs/RELEASES.md and docs/MACOS.md.
 
 # Handoff: Estate Inventory
 
-The working state of the project for the next person or AI agent picking it up. Read this first, then `README.md`, then `docs/`. Last updated 2026-10-12.
+The working state of the project for the next person or AI agent picking it up. Read this first, then `README.md`, then `docs/`. Deployment guidance updated 2026-10-24. The dated baseline below describes the original installation; use docs/RELEASES.md and the latest Deploy run for current release status.
 
 ## 1. What this is and who it's for
 
@@ -18,7 +18,7 @@ A private, offline-first PWA for one family (the owner, Kevin Baron, and his sib
 
 | Area | State |
 | --- | --- |
-| Live app | https://redbaron13.github.io/estate-inventory/ (GitHub Pages, `gh-pages` branch, published by CI) |
+| Live app | https://redbaron13.github.io/estate-inventory/ (GitHub Pages; releases now deploy artifacts from protected `mainbranch`) |
 | Backend | Supabase project `dszldulsyoovtnsaquay` (US East, Postgres 17), all 11 migrations applied; schema fingerprint matches the tested local database exactly (708 objects) |
 | API | Supabase Edge Function `api`, version 2, serving `/functions/v1/api/v1/*` |
 | Tests | 29 unit, 79 database (pgTAP), 6 end-to-end (Playwright, phone size); all green locally and in GitHub Actions |
@@ -34,7 +34,7 @@ Credentials are **not** in this file or the repo (the repo is public). The owner
 | Thing | Location / identifier | Notes |
 | --- | --- | --- |
 | Code | github.com/Redbaron13/estate-inventory, branch `mainbranch` (default) | **Public** repo. Commits must use the GitHub no-reply email `98280733+Redbaron13@users.noreply.github.com` (the account blocks pushes exposing the personal email) |
-| Hosted app | GitHub Pages from `gh-pages` (force-pushed by `deploy.yml` job `pages`) | Base path `/estate-inventory/`; built with `VITE_BASE=/estate-inventory/ vite build --mode hosted` |
+| Hosted app | GitHub Pages artifact from approved `mainbranch` (`deploy.yml`, job `release`) | Base path `/estate-inventory/`; built with `VITE_BASE=/estate-inventory/ vite build --mode hosted` |
 | Supabase | Project ref `dszldulsyoovtnsaquay`, org created through the **Vercel Marketplace** integration | Billing/plan changes go through Vercel. Free plan: pauses after 7 days idle (keep-alive in `backup.yml`), no Supabase backups |
 | API deployment | Entry file deployed via Supabase MCP imports the real source from jsDelivr at a **pinned commit**: `https://cdn.jsdelivr.net/gh/Redbaron13/estate-inventory@9c3b7cb6644764d46a230317217f99934d4304e0/supabase/functions/api/index.ts` | API code unchanged since that commit. To update: push, then redeploy the one-line entry with the new SHA (pass `import_map_path: "deno.json"` or the deploy fails). Or set `SUPABASE_ACCESS_TOKEN` and use `deploy.yml` |
 | Public client config | `.env.hosted` (URL, publishable key, API URL) | Public by design. Only loaded by `--mode hosted`; never by local/CI test builds |
@@ -80,7 +80,7 @@ npm run build && npm run preview &   # then: npx playwright test
 deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts
 ```
 
-Release: push to `mainbranch`; CI must pass; the `pages` job republishes the app. Database changes: new migration file, test locally, then apply to hosted (CLI `supabase db push` with secrets, or the Supabase MCP `apply_migration`).
+Release: push to `mainbranch`; CI must pass; the `release` job deploys the verified Pages artifact from mainbranch. Database changes: new migration file, test locally, then apply to hosted (CLI `supabase db push` with secrets, or the Supabase MCP `apply_migration`).
 
 ### Agent-environment gotchas (cloud sandbox)
 

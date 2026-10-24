@@ -64,8 +64,8 @@ The database is the record, so changes to it follow stricter rules than app code
 
 ## Rolling back
 
-- **App**: Cloudflare dashboard > Workers & Pages > estate-inventory > Deployments > choose the previous production deployment > Rollback. Takes effect in seconds.
-- **API function**: rerun Deploy from an earlier commit (Run workflow > "Use workflow from" a tag or branch), or fix forward.
+- **Production app and API**: revert the faulty change on mainbranch, increase the patch version, and let Deploy build and verify a new release. Exact release artifacts are retained for 90 days. Production Pages deployment runs directly from mainbranch through the protected environment.
+- **Staging app**: use the Cloudflare Pages deployment history for staging, or fix forward on develop.
 - **Database**: fix forward with a new migration. Never reset or restore production to undo a release; a restore rolls back everyone's real work too. See RUNBOOK "Restore" for genuine data loss.
 
 ## Secrets and variables
