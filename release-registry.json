@@ -22,6 +22,17 @@
       "commit": "97bbe0c7a9a34872b18126624796aff60884129a",
       "environment": "production",
       "builtAt": "2026-10-22T12:00:16.806Z"
+    },
+    {
+      "id": "WBx3JP9F",
+      "version": "0.2.2",
+      "distribution": "WB",
+      "architecture": "x3",
+      "deploymentKey": "40160820471:production:WB:x3",
+      "deployed": true,
+      "commit": "0ea0a884fa77e1a8d2e8553fd9c3d739bc7b8c31",
+      "environment": "production",
+      "builtAt": "2026-10-25T04:13:24.247Z"
     }
   ]
 }
