@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
-        if NavigationPolicy.isAppURL(url) || (NavigationPolicy.isDownload(url) && webView.url.map(NavigationPolicy.isAppURL) == true) {
+        if NavigationPolicy.isAppURL(url) || (NavigationPolicy.isDownload(url) && webView.url.map { NavigationPolicy.isAppURL($0) } == true) {
             if navigationAction.shouldPerformDownload { decisionHandler(.download) }
             else if navigationAction.targetFrame == nil { webView.load(navigationAction.request); decisionHandler(.cancel) }
             else { decisionHandler(.allow) }
@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         guard let url = navigationResponse.response.url,
-              NavigationPolicy.isAppURL(url) || (NavigationPolicy.isDownload(url) && webView.url.map(NavigationPolicy.isAppURL) == true) else {
+              NavigationPolicy.isAppURL(url) || (NavigationPolicy.isDownload(url) && webView.url.map { NavigationPolicy.isAppURL($0) } == true) else {
             decisionHandler(.cancel)
             return
         }
@@ -148,13 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         finishVerification(error: "Could not open inventory.")
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { status.stringValue = "Could not open inventory. Try Reload."; finishVerification(error: "Navigation failed.") }
-    private func trusted(_ frame: WKFrameInfo) -> Bool { frame.securityOrigin.protocol == "https" && frame.securityOrigin.host == NavigationPolicy.home.host && frame.isMainFrame }
+    private func trusted(_ origin: WKSecurityOrigin) -> Bool { NavigationPolicy.trustedOrigin(scheme: origin.protocol, host: origin.host, port: origin.port) }
+    private func trusted(_ frame: WKFrameInfo) -> Bool { frame.isMainFrame && trusted(frame.securityOrigin) }
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
         guard trusted(frame) else { completionHandler(nil); return }
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = parameters.allowsMultipleSelection; panel.canChooseDirectories = false
         panel.beginSheetModal(for: window) { response in completionHandler(response == .OK ? panel.urls : nil) }
     }
-    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) { decisionHandler(type == .camera && trusted(frame) && origin.host == NavigationPolicy.home.host ? .prompt : .deny) }
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) { decisionHandler(type == .camera && trusted(frame) && trusted(origin) ? .prompt : .deny) }
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         guard trusted(frame) else { completionHandler(); return }
         let alert = NSAlert(); alert.messageText = message; alert.beginSheetModal(for: window) { _ in completionHandler() }

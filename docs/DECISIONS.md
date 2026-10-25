@@ -43,3 +43,5 @@ Why the app is built the way it is. Newest decisions go at the bottom; a decisio
 | 35 | Patch only app-owned hosted auth settings and verify them after deployment | The full CLI config push inherited local auth settings and the default sender rejected custom templates, blocking release 0.2.0. Preserve production security settings and apply templates only with custom SMTP | Ignoring config errors or weakening email confirmation |
 
 | 36 | Retire the public temporary-password RPC and use verified Supabase Auth recovery | The legacy function allowed an unauthenticated administrator password reset. A forward migration removes it; client code, database regression tests and hosted smoke verification enforce the boundary | Keeping a browser flag as the only gate on a privileged function |
+
+| 37 | Derive the web base path and Mac home from the registered Pages target; test Mac rendering on a local fixture | The custom domain moved the app to the root and an unavailable live origin blocked repair builds. Keep HTTPS and origin checks; preserve the prior API origin so existing installed clients can sync | Hardcoded github.io URLs or weakening native navigation checks |

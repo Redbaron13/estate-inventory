@@ -74,8 +74,9 @@ jobs:
             PROJECT_REF="$PROD_REF"; DB_PASSWORD="$PROD_PASSWORD"
             VITE_SUPABASE_URL="${PROD_URL:-$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted)}"
             VITE_SUPABASE_ANON_KEY="${PROD_KEY:-$(sed -n 's/^VITE_SUPABASE_ANON_KEY=//p' .env.hosted)}"
-            SITE_URL=https://redbaron13.github.io/estate-inventory/
-            VITE_BASE=/estate-inventory/
+            gh api "repos/$GITHUB_REPOSITORY/pages" | node scripts/pages-target.mjs > /tmp/pages-target.env
+            SITE_URL="$(sed -n 's/^SITE_URL=//p' /tmp/pages-target.env)"
+            VITE_BASE="$(sed -n 's/^VITE_BASE=//p' /tmp/pages-target.env)"
           else
             PROJECT_REF="$STAGING_REF"; DB_PASSWORD="$STAGING_PASSWORD"
             VITE_SUPABASE_URL="$STAGING_URL"; VITE_SUPABASE_ANON_KEY="$STAGING_KEY"
@@ -135,6 +136,8 @@ jobs:
           supabase db push --yes --password "$DB_PASSWORD"
           node scripts/configure-deploy.mjs
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
+          # Keep existing installed github.io clients able to sync during the domain transition.
+          if [ "$TARGET" = production ]; then origin="$origin,https://redbaron13.github.io"; fi
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
       - name: Verify the retired administrator reset RPC is absent

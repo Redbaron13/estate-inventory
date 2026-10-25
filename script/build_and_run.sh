@@ -40,9 +40,15 @@ export MAC_BUNDLE_PATH="$app"
 python3 <<'PY'
 import json, os, plistlib
 from pathlib import Path
+from urllib.parse import urlsplit
 r=json.loads(Path('public/release.json').read_text())
-bundle='io.github.redbaron13.estate-inventory' + ('.development' if r['id'].startswith('ZY') else '')
-info={'CFBundleExecutable':'EstateInventory','CFBundleIdentifier':bundle,'CFBundleName':'Estate Inventory','CFBundleDisplayName':'Estate Inventory','CFBundlePackageType':'APPL','CFBundleShortVersionString':r['version'],'CFBundleVersion':os.environ.get('GITHUB_RUN_NUMBER','1'),'EstateReleaseID':r['id'],'LSMinimumSystemVersion':'13.0','NSPrincipalClass':'NSApplication','NSHighResolutionCapable':True,'NSCameraUsageDescription':'Photograph estate items and scan their labels.','WKAppBoundDomains':['redbaron13.github.io']}
+site=os.environ.get('MAC_APP_URL','https://eiapp3.redbaronworks.com/')
+url=urlsplit(site)
+local=url.scheme=='http' and url.hostname in ('localhost','127.0.0.1','::1') and r['id'].startswith('ZY')
+if (url.scheme!='https' and not local) or not url.hostname or url.username or url.password or url.query or url.fragment:
+    raise SystemExit('MAC_APP_URL must use HTTPS. Only development builds may use loopback HTTP.')
+bundle='io.github.redbaron13.estate-inventory'  + ('.development' if r['id'].startswith('ZY') else '')
+info={'CFBundleExecutable':'EstateInventory','CFBundleIdentifier':bundle,'CFBundleName':'Estate Inventory','CFBundleDisplayName':'Estate Inventory','CFBundlePackageType':'APPL','CFBundleShortVersionString':r['version'],'CFBundleVersion':os.environ.get('GITHUB_RUN_NUMBER','1'),'EstateReleaseID':r['id'],'LSMinimumSystemVersion':'13.0','NSPrincipalClass':'NSApplication','NSHighResolutionCapable':True,'NSCameraUsageDescription':'Photograph estate items and scan their labels.','EstateAppURL':site,'WKAppBoundDomains':[url.hostname], 'NSAppTransportSecurity':{'NSAllowsLocalNetworking':True} if local else {}}
 Path(os.environ['MAC_BUNDLE_PATH'],'Contents','Info.plist').write_bytes(plistlib.dumps(info))
 PY
 # Local and CI previews receive an ad hoc signature. The release workflow

@@ -20,13 +20,13 @@ The About menu shows the native host's version and ID. Family and settings insid
 
 ## CI and distribution
 
-Every pull request runs the Swift navigation tests, builds both architectures and launches the host architecture on a Mac runner. CI saves ZIP previews and a screenshot as a workflow artifact. ZIPs preserve the executable permission. Previews use development IDs and ad hoc signing. They are for local testing, and are not notarized public releases.
+Every pull request runs the Swift navigation tests, builds both architectures and launches the host architecture against a locally built web fixture on a Mac runner. This check works even when the live website is unavailable. ZIP previews still open the production website configured in GitHub Pages. CI saves ZIP previews and a screenshot as a workflow artifact. ZIPs preserve the executable permission. Previews use development IDs and ad hoc signing. They are for local testing, and are not notarized public releases.
 
 After a successful production web deployment, the Mac release job checks the six Apple secrets documented in `../textfile/README.md`. If any are absent, it reports that signing is unavailable and publishes no Mac release. With all six configured, it reserves distinct `MCx1…` and `MCx6…` IDs in the shared registry, builds, signs with Developer ID, notarizes, staples, checks Gatekeeper and publishes ZIP downloads with SHA-256 checksums on GitHub Releases. Failed reservations stay in the registry and are not reused. Release tags include the version and a reserved Mac deployment ID. Assets are uploaded to a draft before publication; retries replace the same named assets only after checking the source commit. Download the ZIP and SHA256SUMS.txt into one folder, then run `shasum -a 256 -c SHA256SUMS.txt`.
 
 The certificate is imported into an ephemeral keychain and removed after the job. Never put Apple credentials, deployment tokens or service-role keys in the app bundle.
 
-Navigation stays inside this inventory's HTTPS path. External links open in the default browser after a user click. The app has no JavaScript-to-native command bridge. File and camera access remains subject to system dialogs.
+The build embeds the configured GitHub Pages URL as EstateAppURL. Local builds default to https://eiapp3.redbaronworks.com/. Set MAC_APP_URL at build time to test another endpoint. Only ZY development bundles may use HTTP on loopback; deployed bundles require HTTPS. Navigation, downloads and file permissions stay inside the configured origin and inventory path. External links open in the default browser after a user click. The app has no JavaScript-to-native command bridge. File and camera access remains subject to system dialogs.
 
 ## Physical device release check
 
