@@ -54,6 +54,12 @@ jobs:
             echo '::notice::Mac signing credentials are incomplete. CI previews are available; no signed Mac release will be published.'
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Resolve the configured production website
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pages" | node scripts/pages-target.mjs > /tmp/pages-target.env
+          SITE_URL="$(sed -n 's/^SITE_URL=//p' /tmp/pages-target.env)"
+          VITE_BASE="$(sed -n 's/^VITE_BASE=//p' /tmp/pages-target.env)"
+          echo "MAC_APP_URL=$SITE_URL" >> "$GITHUB_ENV"
       - name: Test native navigation boundaries
         run: swift test --package-path native/macos
       - name: Import Developer ID certificate into an ephemeral keychain

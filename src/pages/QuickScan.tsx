@@ -468,9 +468,9 @@ export default function QuickScan() {
       </section>
 
       </fieldset>
-      <p className="mb-3 text-ink-soft" role="status">{savedLocally ? "Batch saved on this device. Save the items below to add them to the shared inventory." : "Saving this batch on this device…"}</p>
+      <p className="mb-3 text-ink-soft" role="status">{savedLocally ? "Batch saved on this device. Save these items to add them to the shared inventory." : "Saving this batch on this device…"}</p>
       {batch.rows.length > 0 && (
-        <div className="sticky bottom-24 z-10 pb-2">
+        <div className="sticky bottom-24 z-10 rounded-2xl border border-line bg-surface p-3 shadow-lg lg:bottom-4">
           <button type="button" className="btn btn-primary btn-block min-h-16 text-lg shadow-lg" disabled={!!busy || !savedLocally} onClick={() => void saveAll()}>
             <Icon name="check" size={24} /> Save {newCount ? `${newCount} new ${newCount === 1 ? 'item' : 'items'}` : ''}{newCount && moveCount ? ' and ' : ''}{moveCount ? `${moveCount} ${moveCount === 1 ? 'move' : 'moves'}` : ''}
           </button>

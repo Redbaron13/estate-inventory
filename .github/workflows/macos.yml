@@ -12,6 +12,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm ci
+      - name: Resolve the configured production website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pages" | node scripts/pages-target.mjs > /tmp/pages-target.env
+          SITE_URL="$(sed -n 's/^SITE_URL=//p' /tmp/pages-target.env)"
+          VITE_BASE="$(sed -n 's/^VITE_BASE=//p' /tmp/pages-target.env)"
+          echo "MAC_APP_URL=$SITE_URL" >> "$GITHUB_ENV"
+      - name: Build a local web fixture for native rendering
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+          VITE_APP_ENV: ci
       - name: Test native navigation boundaries
         run: swift test --package-path native/macos
       - name: Build both Mac architectures
@@ -23,7 +38,12 @@ jobs:
             ditto -c -k --keepParent "dist/macos/$arch/Estate Inventory.app" "dist/previews/Estate-Inventory-development-$arch.zip"
           done
       - name: Launch and verify the native window
-        run: ./script/build_and_run.sh --verify
+        env:
+          MAC_APP_URL: http://127.0.0.1:4173/
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          ./script/build_and_run.sh --verify
       - name: Keep native preview and screenshot
         if: always()
         uses: actions/upload-artifact@v7

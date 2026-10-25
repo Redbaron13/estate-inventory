@@ -30,6 +30,7 @@ jobs:
     permissions:
       contents: write
       pages: write
+      id-token: write
     # Allocation is serialized across environments because both share the registry.
     concurrency:
       group: release-registry
@@ -73,8 +74,9 @@ jobs:
             PROJECT_REF="$PROD_REF"; DB_PASSWORD="$PROD_PASSWORD"
             VITE_SUPABASE_URL="${PROD_URL:-$(sed -n 's/^VITE_SUPABASE_URL=//p' .env.hosted)}"
             VITE_SUPABASE_ANON_KEY="${PROD_KEY:-$(sed -n 's/^VITE_SUPABASE_ANON_KEY=//p' .env.hosted)}"
-            SITE_URL=https://redbaron13.github.io/estate-inventory/
-            VITE_BASE=/estate-inventory/
+            gh api "repos/$GITHUB_REPOSITORY/pages" | node scripts/pages-target.mjs > /tmp/pages-target.env
+            SITE_URL="$(sed -n 's/^SITE_URL=//p' /tmp/pages-target.env)"
+            VITE_BASE="$(sed -n 's/^VITE_BASE=//p' /tmp/pages-target.env)"
           else
             PROJECT_REF="$STAGING_REF"; DB_PASSWORD="$STAGING_PASSWORD"
             VITE_SUPABASE_URL="$STAGING_URL"; VITE_SUPABASE_ANON_KEY="$STAGING_KEY"
@@ -92,7 +94,7 @@ jobs:
           if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_REF" ] && [ -n "$DB_PASSWORD" ]; then
             deploy_backend=true
           else
-            node scripts/check-backend-deploy.mjs
+            SITE_URL="$SITE_URL" node scripts/check-backend-deploy.mjs
             echo '::notice::Frontend release. Backend credentials are not configured; existing API remains in use.'
           fi
           echo "backend=$deploy_backend" >> "$GITHUB_OUTPUT"
@@ -134,6 +136,8 @@ jobs:
           supabase db push --yes --password "$DB_PASSWORD"
           node scripts/configure-deploy.mjs
           origin="$(node --input-type=module -e 'console.log(new URL(process.env.SITE_URL).origin)')"
+          # Keep existing installed github.io clients able to sync during the domain transition.
+          if [ "$TARGET" = production ]; then origin="$origin,https://redbaron13.github.io"; fi
           supabase secrets set --project-ref "$PROJECT_REF" ALLOWED_ORIGINS="$origin"
           supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt
       - name: Verify the retired administrator reset RPC is absent
@@ -151,17 +155,15 @@ jobs:
           name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
           path: dist/
           retention-days: 90
-      - name: Publish production
+      - name: Upload the production Pages artifact
         if: env.TARGET == 'production'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/upload-pages-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
-          publish_branch: gh-pages
-          force_orphan: true
-          user_name: Kevin Baron
-          user_email: 98280733+Redbaron13@users.noreply.github.com
-          commit_message: Release ${{ steps.identity.outputs.version }} ${{ steps.identity.outputs.id }}
+          path: dist/
+      - name: Publish production from the approved source branch
+        if: env.TARGET == 'production'
+        id: deployment
+        uses: actions/deploy-pages@v4
       - name: Publish staging
         if: env.TARGET == 'staging'
         run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch staging --commit-hash "$GITHUB_SHA" --commit-dirty=true
