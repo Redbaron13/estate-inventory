@@ -163,7 +163,7 @@ jobs:
       - name: Publish production from the approved source branch
         if: env.TARGET == 'production'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
       - name: Publish staging
         if: env.TARGET == 'staging'
         run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch staging --commit-hash "$GITHUB_SHA" --commit-dirty=true
