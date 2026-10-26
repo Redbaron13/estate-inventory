@@ -157,7 +157,7 @@ jobs:
           retention-days: 90
       - name: Upload the production Pages artifact
         if: env.TARGET == 'production'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
       - name: Publish production from the approved source branch
