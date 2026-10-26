@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  # Skipped with a notice until the backup key and vault keys are set up.
+  # Fails with a clear summary (and GitHub emails the owner) until the backup key and vault keys are set up.
   check:
     runs-on: ubuntu-24.04
     outputs:
@@ -30,13 +30,25 @@ jobs:
         env:
           AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
           R2_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -z "$AGE_IDENTITY" ] || [ -z "$R2_KEY" ]; then
-            echo "::notice::Restore drill not set up yet (BACKUP_AGE_IDENTITY, R2 keys). See docs/RUNBOOK.md."
+          missing=""
+          [ -n "$AGE_IDENTITY" ] || missing="$missing BACKUP_AGE_IDENTITY"
+          [ -n "$R2_KEY" ] || missing="$missing R2_ACCESS_KEY_ID"
+          [ -n "$R2_SECRET" ] || missing="$missing R2_SECRET_ACCESS_KEY"
+          [ -n "$CF_ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            {
+              echo "### Restore drill NOT RUN: missing configuration"
+              echo "No restore was tested. Missing:$missing"
+              echo "See docs/RUNBOOK.md."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Restore drill did not run. Missing configuration:$missing. See docs/RUNBOOK.md."
             echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
   drill:
     needs: check
@@ -137,3 +149,13 @@ jobs:
           psql "$RESTORED" -At -v ON_ERROR_STOP=1 -f scripts/restore-write-check.sql
           DATABASE_URL="$RESTORED" node scripts/verify-ledger.mjs --heads restore/heads.json
           echo "- Policies, sign-up triggers, append-only guard and a fresh write all work." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize the result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### Restore drill SUCCEEDED" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Restore drill FAILED (${{ job.status }})" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Restore drill failed. Check the steps above."
+          fi
