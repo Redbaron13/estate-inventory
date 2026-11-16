@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { ErrorText, Field, Notice } from '../components/ui';
@@ -22,11 +22,19 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => { if (data.session) navigate('/', { replace: true }); });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) navigate('/', { replace: true });
+    });
+    return () => data.subscription.unsubscribe();
+  }, [navigate]);
+
   async function sendCode(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).href } });
     setBusy(false);
     if (error) setError(error.message.includes('rate') ? 'Too many codes requested. Wait a few minutes and try again.' : error.message);
     else setStep('verify');
@@ -83,7 +91,7 @@ export default function SignIn() {
             onClick={() => { setMode('code'); setError(null); }}
           >
             <Icon name="file" size={16} />
-            Email code
+            Email link or code
           </button>
           <button
             type="button"
@@ -99,16 +107,16 @@ export default function SignIn() {
 
         {mode === 'code' && step === 'email' && (
           <form onSubmit={sendCode}>
-            <Field label="Your email address" htmlFor="email" hint="We'll email you a 6-digit code. No password needed.">
+            <Field label="Your email address" htmlFor="email" hint="We'll email you a sign-in link. No password needed.">
               <input id="email" className="input" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
-            <button className="btn btn-primary btn-block" disabled={busy || !email}>Email me a code</button>
+            <button className="btn btn-primary btn-block" disabled={busy || !email}>Email me a sign-in link</button>
           </form>
         )}
 
         {mode === 'code' && step === 'verify' && (
           <form onSubmit={verify}>
-            <p className="mb-4 text-sm text-ink-soft">We sent a 6-digit verification code to <b className="text-ink">{email}</b>.</p>
+            <p className="mb-4 text-sm text-ink-soft">Check <b className="text-ink">{email}</b> and open the sign-in link. If your email contains a code instead, enter it below.</p>
             <Field label="6-digit code" htmlFor="code">
               <input id="code" className="input code text-center text-2xl tracking-[0.4em]" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
             </Field>
@@ -157,6 +165,7 @@ export default function SignIn() {
           </form>
         )}
 
+        {!newAccount && <button type="button" className="btn btn-secondary btn-block mt-4" onClick={() => { setMode('password'); setNewAccount(true); setError(null); }}>Create an account</button>}
         <ErrorText error={error} />
       </div>
 
@@ -167,7 +176,7 @@ export default function SignIn() {
           onClick={() => { setMode(mode === 'code' ? 'password' : 'code'); setError(null); }}
         >
           <Icon name={mode === 'code' ? 'lock' : 'file'} size={16} />
-          {mode === 'code' ? 'Use a password instead' : 'Use an email code instead'}
+          {mode === 'code' ? 'Use a password instead' : 'Use an email link instead'}
         </button>
         {APP_ENV !== 'production' && <p className="text-center text-[0.8rem] text-ink-soft">Environment: {APP_ENV}</p>}
       </div>
