@@ -55,6 +55,17 @@
       "commit": "3cb6a63036d9c953ca66a9122dbad170a140e109",
       "environment": "production",
       "builtAt": "2026-11-16T15:25:34.262Z"
+    },
+    {
+      "id": "WBx3J8MI",
+      "version": "0.2.5",
+      "distribution": "WB",
+      "architecture": "x3",
+      "deploymentKey": "43927949480:production:WB:x3",
+      "deployed": true,
+      "commit": "ee99eb45c35e55b9209e47e5befbd996d63003c2",
+      "environment": "production",
+      "builtAt": "2026-11-16T18:27:04.613Z"
     }
   ]
 }
