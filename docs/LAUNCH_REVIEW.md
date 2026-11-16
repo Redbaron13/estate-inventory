@@ -59,7 +59,8 @@ P0 means a launch gate. The shared-device restriction can support a limited pilo
 6. Backup and restore jobs now select the production environment where credentials actually live. Missing configuration fails clearly. Cloudflare account ID is included in backup readiness checks. Successful workflow status must not conceal an unconfigured recovery job.
 7. CI now rejects known high/critical advisories in shipped npm dependencies. Registry availability is required for this check. Development-tool advisories are recorded separately rather than silently applying breaking upgrades. A compatible undici update for jsdom is included; the pinned miniflare dependency under wrangler still leaves a high advisory in development tooling.
 8. Private deployment tokens/passwords are scoped to the steps that need them, rather than npm installation/build. Checkout does not persist its write token.
-9. All action references in these workflows are pinned to verified commit IDs. The adjacent version comment identifies the reviewed release. Review pins through PRs when updating.
+9. Both Mac workflows now use supported macos-15 runners. Initial PR CI could not start macos-14 after GitHub retired that image.
+10. All action references in these workflows are pinned to verified commit IDs. The adjacent version comment identifies the reviewed release. Review pins through PRs when updating.
 
 No workflow was dispatched to production, no settings were changed remotely, no migration was applied to a hosted project, and no existing records were deleted by this review. Opening the PR only starts validation.
 
@@ -153,4 +154,4 @@ Validation results for this PR are recorded below after the local and remote che
 - Production npm audit: zero known findings after the DOMPurify patch. The full development audit still reports 19 findings (one high, 15 moderate, three low), including pinned undici under miniflare/wrangler. This is not a zero-vulnerability claim for the complete toolchain. Update the provider toolchain in a separately tested change.
 - Current production API health and public access checks are read-only. No real-family sign-in, SMTP delivery, invitation, destructive security probe, remote backup/restore or production deployment was performed.
 
-Remote PR CI must finish successfully before merge. Passing this PR does not close the operational launch gates above.
+Initial remote PR CI reported “macos-14-arm64-us-default is not supported” before executing any Mac steps. Both Mac workflows were updated to macos-15, following the [official retirement notice](https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement/). Remote PR CI must finish successfully before merge. Passing this PR does not close the operational launch gates above.
