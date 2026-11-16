@@ -1,3 +1,4 @@
+import { accountMatches } from './account-scope';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,7 +20,7 @@ export function useSession(): { session: Session | null; loading: boolean } {
         setSession(null);
         void recordDiagnostic('error', 'api', 'SESSION_READ_FAILED', 'The saved sign-in could not be checked. Sign in again.');
       } else {
-        setSession(data.session);
+        setSession(accountMatches(data.session?.user.id ?? null) ? data.session : null);
       }
       setLoading(false);
     }).catch(() => {
@@ -30,7 +31,7 @@ export function useSession(): { session: Session | null; loading: boolean } {
     });
     const { data } = supabase.auth.onAuthStateChange((_e, s) => {
       if (!alive) return;
-      setSession(s);
+      setSession(accountMatches(s?.user.id ?? null) ? s : null);
       setLoading(false);
     });
     return () => {

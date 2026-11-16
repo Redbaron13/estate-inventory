@@ -2,6 +2,7 @@
 // queue of changes waiting to upload. Stored in IndexedDB, so it survives
 // closing the app and works with no signal.
 import Dexie, { type Table } from 'dexie';
+import { accountDatabaseName } from './account-scope';
 import type {
   Claim, CustodyEvent, DecisionInvalidation, DuplicateReview, Estate, EstateData, GrabResolution, GrabRound, Invite,
   Item, Location, Media, MediaVerification, Member, NumberReservation, NumberVoid, Profile, Proposal,
@@ -103,7 +104,7 @@ class EstateDB extends Dexie {
   meta!: Table<Meta, string>;
 
   constructor() {
-    super('estate-inventory');
+    super(accountDatabaseName());
     this.version(1).stores({
       estates: 'id',
       myEstates: 'id',

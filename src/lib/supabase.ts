@@ -1,3 +1,4 @@
+import { assertAccountUser } from './account-scope';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
 
@@ -16,6 +17,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export async function accessToken(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession();
+    assertAccountUser(data.session?.user.id ?? null);
     return data.session?.access_token ?? null;
   } catch {
     return null;
