@@ -134,7 +134,7 @@ export default function SignIn() {
                   className="input pr-12"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={newAccount ? 'new-password' : 'current-password'}
-                  minLength={10}
+                  minLength={newAccount ? 10 : undefined}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -143,7 +143,7 @@ export default function SignIn() {
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-ink-soft hover:text-ink focus:outline-hidden"
                   onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show text'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   <Icon name={showPassword ? 'lock' : 'search'} size={18} />

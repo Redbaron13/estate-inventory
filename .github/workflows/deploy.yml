@@ -39,31 +39,33 @@ jobs:
       TARGET: ${{ inputs.target || (github.ref_name == 'mainbranch' && 'production' || 'staging') }}
       CONFIRM: ${{ inputs.confirm }}
       BEFORE: ${{ github.event.before }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROD_REF: ${{ secrets.PROD_SUPABASE_PROJECT_REF }}
-      PROD_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
       STAGING_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
-      STAGING_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
       STAGING_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       STAGING_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
       PROD_URL: ${{ secrets.PROD_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
       PROD_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL || secrets.STAGING_SITE_URL }}
       PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'estate-inventory' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - name: Resolve environment and check deployment configuration
         id: config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROD_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
+          STAGING_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           if [ "$TARGET" = production ]; then
@@ -107,10 +109,16 @@ jobs:
             echo "VITE_BASE=$VITE_BASE"
             echo "RELEASE_ENV=$TARGET"
           } >> "$GITHUB_ENV"
+      - name: Verify isolated destinations and HTTPS before any hosted write
+        run: node scripts/deploy-preflight.mjs
+        env:
+          PRODUCTION_URL: ${{ secrets.PROD_SUPABASE_URL || secrets.VITE_SUPABASE_URL || 'https://dszldulsyoovtnsaquay.supabase.co' }}
+          PRODUCTION_SITE_URL: https://eiapp3.redbaronworks.com/
       - name: Reserve a globally unique release identity
         id: identity
         run: node scripts/reserve-release.mjs
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_KEY: ${{ github.run_id }}:${{ env.TARGET }}:WB:x3
       - name: Build the installable and browser app
         run: npm run build
@@ -119,11 +127,15 @@ jobs:
           VITE_APP_ENV: ${{ env.TARGET }}
       - name: Install Supabase CLI
         if: steps.config.outputs.backend == 'true'
-        uses: supabase/setup-cli@v3
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: 2.120.0
       - name: Migrate database and deploy API before publishing the app
         if: steps.config.outputs.backend == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROD_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
+          STAGING_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           if [ "$TARGET" = production ]; then
@@ -150,22 +162,24 @@ jobs:
           touch dist/.nojekyll
           rm -f dist/_headers
       - name: Keep the exact release for download and rollback
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: estate-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.id }}
           path: dist/
           retention-days: 90
       - name: Upload the production Pages artifact
         if: env.TARGET == 'production'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: dist/
       - name: Publish production from the approved source branch
         if: env.TARGET == 'production'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
       - name: Publish staging
         if: env.TARGET == 'staging'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch staging --commit-hash "$GITHUB_SHA" --commit-dirty=true
       - name: Verify the exact published release and backend health
         env:

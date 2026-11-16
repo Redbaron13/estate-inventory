@@ -42,7 +42,7 @@ test('capture comprehensive mobile-first wiki screenshots', async ({ page }, tes
 
   // Fill credentials and sign in
   await page.getByLabel('Email').fill(EMAIL);
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('link', { name: /Add an item/ })).toBeVisible();
   await expect(page.getByText('All saved')).toBeVisible({ timeout: 30_000 });

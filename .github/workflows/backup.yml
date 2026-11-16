@@ -32,9 +32,9 @@ permissions:
   contents: read
 
 jobs:
-  # Until any backup secret exists, the backup is skipped with a notice. Once
-  # setup has started, a missing piece fails loudly (and GitHub emails you).
+  # A green run must mean a backup ran. Missing setup fails with a clear action.
   check:
+    environment: github-pages
     runs-on: ubuntu-24.04
     outputs:
       ready: ${{ steps.config.outputs.ready }}
@@ -56,14 +56,15 @@ jobs:
           F: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           G: ${{ secrets.PROD_STORAGE_S3_ACCESS_KEY_ID }}
           H: ${{ secrets.PROD_STORAGE_S3_SECRET_ACCESS_KEY }}
+          I: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set_count=0
-          for v in A B C D E F G H; do [ -n "${!v}" ] && set_count=$((set_count + 1)); done
+          for v in A B C D E F G H I; do [ -n "${!v}" ] && set_count=$((set_count + 1)); done
           if [ "$set_count" -eq 0 ]; then
-            echo "::notice::Backups are not set up yet. See docs/RUNBOOK.md, 'One-time production setup'."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          elif [ "$set_count" -lt 8 ]; then
-            echo "::error::Backup setup is incomplete ($set_count of 8 settings present). See docs/RUNBOOK.md."; exit 1
+            echo "::error::No backup was made. Configure the backup settings in docs/PIPELINE.md."
+            exit 1
+          elif [ "$set_count" -lt 9 ]; then
+            echo "::error::Backup setup is incomplete ($set_count of 9 settings present). See docs/RUNBOOK.md."; exit 1
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -71,6 +72,7 @@ jobs:
   backup:
     needs: check
     if: needs.check.outputs.ready == 'true'
+    environment: github-pages
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -94,13 +96,13 @@ jobs:
       RCLONE_CONFIG_SB_REGION: ${{ vars.SUPABASE_REGION || 'us-east-1' }}
       RCLONE_CONFIG_SB_FORCE_PATH_STYLE: 'true'
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: 2.120.0
       - name: Install rclone and age

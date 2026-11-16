@@ -9,7 +9,7 @@ async function signIn(page: Page) {
   await page.goto('/sign-in');
   await page.getByRole('button', { name: 'Use a password instead' }).click();
   await page.getByLabel('Email').fill(EMAIL);
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('link', { name: /Add an item/ })).toBeVisible();
   await expect(page.getByText('All saved')).toBeVisible({ timeout: 30_000 });
@@ -132,4 +132,49 @@ test('batch opens family choices and reports distinguish choices from handoffs',
   await page.screenshot({ path: `test-results/ui/${testInfo.project.name}-choices.png`, fullPage: false });
   await page.goto(`${base}/reports/beneficiaries`);
   await expect(page.getByRole('heading', { name: 'Beneficiary summary', exact: true })).toBeVisible();
+});
+
+
+test('sign-in accepts existing passwords without applying new-account length rules', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByRole('button', { name: 'Password', exact: true }).click();
+  const password = page.getByLabel('Password', { exact: true });
+  await expect(password).not.toHaveAttribute('minlength');
+  await password.fill('short');
+  await page.getByRole('button', { name: 'Show password', exact: true }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Hide password', exact: true }).click();
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Create an account with a password' }).click();
+  await expect(password).toHaveAttribute('minlength', '10');
+});
+
+
+test('offline report and backup links deny a member without export permission', async ({ page, context }) => {
+  await signIn(page);
+  const base = estateBase(page);
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await context.setOffline(true);
+  // Model a locally known restricted membership without changing server records.
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('estate-inventory');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('members', 'readwrite');
+        const cursor = tx.objectStore('members').openCursor();
+        cursor.onsuccess = () => { const row = cursor.result; if (row) { row.update({ ...row.value, can_export: false }); row.continue(); } };
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+    });
+  });
+  await page.goto(`${base}/reports`);
+  await expect(page.getByText('Your role in this estate does not include reports.')).toBeVisible();
+  await page.goto(`${base}/reports/inventory`);
+  await expect(page.getByText('Your role in this estate does not include reports.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Spreadsheet' })).toHaveCount(0);
+  await page.goto(`${base}/backup`);
+  await expect(page.getByText('Your role in this estate does not include backups.')).toBeVisible();
 });

@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { ErrorText, Notice, PageHeader, Spinner } from '../components/ui';
 import { buildBackup, saveFile } from '../lib/backup';
 import { db, setMeta } from '../lib/db';
-import { useEstateData, useEstateId, useMeta, useOnline } from '../lib/hooks';
+import { useEstateData, useEstateId, useMeta, useOnline, useMe, useMyMembership } from '../lib/hooks';
 import { syncNow } from '../lib/sync';
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -12,6 +12,8 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 export default function Backup() {
   const estateId = useEstateId();
   const data = useEstateData(estateId);
+  const me = useMe();
+  const member = useMyMembership(data, me);
   const online = useOnline();
   const lastBackup = useMeta<string | null>(`last_backup:${estateId}`, null);
   const alert = useMeta<{ at: string; problem?: { seq: number; reason: string }; witnessed?: { seq: number; hash: string; seen_at: string } } | null>(`ledger_alert:${estateId}`, null);
@@ -24,6 +26,7 @@ export default function Backup() {
   const [done, setDone] = useState<string | null>(null);
 
   if (!data) return null;
+  if (!member?.can_export) return <Notice tone="neutral" icon="lock">Your role in this estate does not include backups.</Notice>;
 
   async function prepare() {
     setError(null);
