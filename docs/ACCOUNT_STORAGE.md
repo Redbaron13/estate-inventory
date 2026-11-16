@@ -10,7 +10,7 @@ On each phone or browser that used the old app, sign in as its original user, up
 
 Already uploaded records download into the new account database. Unsent legacy work requires supervised recovery because its owner cannot be proven from the old queue. No automatic migration is claimed. This is a rollout prerequisite, not permission to discard old data.
 
-This PR is stacked on #39. Merge that reviewed infrastructure PR first, then retarget this PR to mainbranch. The login-link PR is separate and should be released before or together with account storage.
+This PR is stacked on login PR #40 and includes its email-link support. Release order is infrastructure #39 (0.2.3), login #40 (0.2.4), then this account-storage release (0.2.5). Retarget each child PR after its parent is merged. Do not deploy account storage until old-device queues and batches have been checked.
 
 ## Operational progress
 

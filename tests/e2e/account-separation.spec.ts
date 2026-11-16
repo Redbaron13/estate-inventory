@@ -1,5 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 async function login(page: Page, email: string, saved = true) {
+  await page.goto('/estates');
+  const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
+  const passwordTab = page.getByRole('button', { name: 'Password', exact: true });
+  await expect(signOut.or(passwordTab)).toBeVisible();
+  if (await signOut.isVisible()) {
+    await signOut.click();
+    const confirm = page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true });
+    await expect(passwordTab.or(confirm)).toBeVisible();
+    if (await confirm.isVisible()) await confirm.click();
+    await expect(passwordTab).toBeVisible();
+  }
   await page.goto('/sign-in');
   await page.getByRole('button', { name: 'Password', exact: true }).click();
   await page.getByLabel('Email', { exact: true }).fill(email);
