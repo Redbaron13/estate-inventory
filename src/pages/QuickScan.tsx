@@ -329,7 +329,7 @@ export default function QuickScan() {
       )}
 
       <Notice tone="neutral" icon="scan">
-        Photograph first, identify later. One photo creates one item; a whole-room photo does not identify separate objects. Record many items at once. Add them to the list below by <b>scanning barcodes</b>, <b>typing names</b>, or <b>adding photos</b> (one item per photo, including ones taken earlier). Set what they have in common once, then save them all. Works with no signal.
+        Take one photo per item, import photos, scan a label or type a name. Add details later. Your batch stays on this device until you save it.
       </Notice>
 
       <fieldset disabled={!!busy} className="contents">
@@ -474,7 +474,7 @@ export default function QuickScan() {
           <button type="button" className="btn btn-primary btn-block min-h-16 text-lg shadow-lg" disabled={!!busy || !savedLocally} onClick={() => void saveAll()}>
             <Icon name="check" size={24} /> Save {newCount ? `${newCount} new ${newCount === 1 ? 'item' : 'items'}` : ''}{newCount && moveCount ? ' and ' : ''}{moveCount ? `${moveCount} ${moveCount === 1 ? 'move' : 'moves'}` : ''}
           </button>
-          <p className="mt-1 text-center text-[0.85rem] text-ink-soft">Unnamed items are saved as “needs identifying”. Possible duplicates show up in the Exceptions report.</p>
+          <p className="mt-1 text-center text-[0.85rem] text-ink-soft">Unnamed items need review. Check the Exceptions report for duplicates.</p>
         </div>
       )}
     </div>

@@ -90,6 +90,10 @@ export async function buildBackup(estateId: string, opts: BackupOptions): Promis
   const say = opts.onProgress ?? (() => undefined);
   say('Gathering records…');
   const data = await loadEstateData(estateId);
+  const { data: { session } } = await supabase.auth.getSession();
+  // Offline exports must use the same permission boundary as online reports.
+  const member = data.members.find(m => m.user_id === session?.user.id && m.is_active);
+  if (!session || !member?.can_export) throw new Error('Your role in this estate does not include backups.');
   const generatedAt = new Date().toISOString();
   const head = await getMeta<{ estate_seq: number; hash: string } | null>(`head:${estateId}`, null);
   const witness = await db.witnesses.where('estate_id').equals(estateId).last();

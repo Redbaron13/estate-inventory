@@ -20,8 +20,9 @@ permissions:
   contents: read
 
 jobs:
-  # Skipped with a notice until the backup key and vault keys are set up.
+  # Missing recovery configuration must not report a successful drill.
   check:
+    environment: github-pages
     runs-on: ubuntu-24.04
     outputs:
       ready: ${{ steps.config.outputs.ready }}
@@ -30,10 +31,12 @@ jobs:
         env:
           AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
           R2_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -z "$AGE_IDENTITY" ] || [ -z "$R2_KEY" ]; then
-            echo "::notice::Restore drill not set up yet (BACKUP_AGE_IDENTITY, R2 keys). See docs/RUNBOOK.md."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$AGE_IDENTITY" ] || [ -z "$R2_KEY" ] || [ -z "$R2_SECRET" ] || [ -z "$R2_ACCOUNT" ]; then
+            echo "::error::No restore drill ran. Configure BACKUP_AGE_IDENTITY and all R2 settings in the github-pages environment. See docs/PIPELINE.md."
+            exit 1
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -41,6 +44,7 @@ jobs:
   drill:
     needs: check
     if: needs.check.outputs.ready == 'true'
+    environment: github-pages
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -54,13 +58,13 @@ jobs:
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
       RESTORED: postgresql://postgres:postgres@127.0.0.1:54322/postgres
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: 2.120.0
       - name: Install rclone, age, psql

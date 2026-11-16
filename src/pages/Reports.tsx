@@ -69,7 +69,7 @@ export default function Reports() {
   const [busy, setBusy] = useState(false);
 
   if (!data) return null;
-  if (member && !member.can_export) return <Notice tone="neutral" icon="lock">Your role in this estate does not include reports.</Notice>;
+  if (!member?.can_export) return <Notice tone="neutral" icon="lock">Your role in this estate does not include reports.</Notice>;
   const live = data.items.filter(isLiveItem).sort((a, b) => a.inventory_number - b.inventory_number);
 
   async function labels() {
@@ -168,7 +168,7 @@ export function ReportDetail() {
 
   if (!def) return <EmptyState icon="file" title="Report not found" action={<Link className="btn btn-secondary" to={`/e/${estateId}/reports`}>All reports</Link>} />;
   if (!data) return null;
-  if (member && !member.can_export) return <Notice tone="neutral" icon="lock">Your role in this estate does not include reports.</Notice>;
+  if (!member?.can_export) return <Notice tone="neutral" icon="lock">Your role in this estate does not include reports.</Notice>;
 
   const table = def.key === 'activity' ? activity : local;
   const name = `${safeName(data)}-${def.key}-${fileStamp()}`;
