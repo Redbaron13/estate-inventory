@@ -120,11 +120,11 @@ jobs:
           set -euo pipefail
           STAMP=$(date -u +%Y-%m-%dT%H%M%SZ); MONTH=$(date -u +%Y/%m); YEAR=$(date -u +%Y)
           mkdir -p out && cd out
-          supabase db dump --db-url "$DB_URL" -f roles.sql --role-only
-          supabase db dump --db-url "$DB_URL" -f schema.sql
+          supabase db dump --db-url "$DB_URL" -f "$PWD/roles.sql" --role-only
+          supabase db dump --db-url "$DB_URL" -f "$PWD/schema.sql"
           # Unused storage feature tables are excluded: they are empty and the
           # postgres role cannot write them on restore.
-          supabase db dump --db-url "$DB_URL" -f data.sql --use-copy --data-only -s public,auth,storage \
+          supabase db dump --db-url "$DB_URL" -f "$PWD/data.sql" --use-copy --data-only -s public,auth,storage \
             -x storage.buckets_analytics,storage.buckets_vectors,storage.iceberg_namespaces,storage.iceberg_tables,storage.vector_indexes,storage.s3_multipart_uploads,storage.s3_multipart_uploads_parts
           psql "$DB_URL" -At -v ON_ERROR_STOP=1 -f ../scripts/dump-platform-hooks.sql > hooks.sql
           grep -q "on_auth_user_created" hooks.sql || { echo "::error::hooks.sql is missing the sign-up trigger"; exit 1; }
