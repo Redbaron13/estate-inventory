@@ -157,8 +157,11 @@ test('offline report and backup links deny a member without export permission', 
   await context.setOffline(true);
   // Model a locally known restricted membership without changing server records.
   await page.evaluate(async () => {
+    const names = await indexedDB.databases();
     await new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open('estate-inventory');
+      const name = names.find(db => db.name?.startsWith('estate-inventory-account-'))?.name;
+      if (!name) throw new Error('Account database is missing');
+      const open = indexedDB.open(name);
       open.onerror = () => reject(open.error);
       open.onsuccess = () => {
         const db = open.result;

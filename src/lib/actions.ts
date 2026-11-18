@@ -12,13 +12,16 @@ import { api } from './api';
 import { db, deviceId, type Draft } from './db';
 import type { PreparedPhoto } from './images';
 import { newOp, nudge } from './outbox';
+import { assertAccountUser } from './account-scope';
 import { supabase } from './supabase';
 
 const now = () => new Date().toISOString();
 
 export async function myUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
-  return data.session?.user.id ?? null;
+  const id = data.session?.user.id ?? null;
+  if (id) assertAccountUser(id);
+  return id;
 }
 
 async function requireUser(): Promise<string> {
